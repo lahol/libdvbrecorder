@@ -1,0 +1,461 @@
+#include "dvb-tuner.h"
+
+#define _GNU_SOURCE
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdarg.h>
+#include <errno.h>
+
+#include <unistd.h>
+#include <fcntl.h>
+
+#include <sys/ioctl.h>
+
+#include <sys/poll.h>
+
+#include <linux/dvb/dmx.h>
+#include <linux/dvb/frontend.h>
+
+/* http://blog.man7.org/2012/10/how-much-do-builtinexpect-likely-and.html */
+#define likely(x)   __builtin_expect(!!(x), 1)
+#define unlikely(x) __builtin_expect(!!(x), 0)
+
+int _asprintf(char **strp, const char *fmt, ...)
+{
+    char buffer[64];
+    int bytes_needed;
+    va_list args;
+
+    va_start(args, fmt);
+    bytes_needed = vsnprintf(buffer, 64, fmt, args);
+    va_end(args);
+
+    *strp = malloc(bytes_needed + 1);
+    if (*strp == NULL)
+        return -1;
+
+    if (bytes_needed < 64) {
+        strcpy(*strp, buffer);
+    }
+    else {
+        va_start(args, fmt);
+        vsnprintf(*strp, bytes_needed + 1, fmt, args);
+        va_end(args);
+    }
+
+    return bytes_needed;
+}
+
+/* TODO: multithreading support (lock filedescriptors, etc.) */
+
+#ifndef DVB_TUNER_DUMMY
+struct PIDFilter {
+    uint16_t pid;
+    int fd;
+};
+
+struct PIDFilterList {
+    struct PIDFilter filter;
+    struct PIDFilterList *next;
+};
+
+struct _DVBTuner {
+    uint8_t adapter_num;
+/*    uint32_t frequency;*/
+    /* ?? enum fe_sec_tone_mode (frontend.h @108) */
+    uint8_t tone;
+    uint8_t polarization;
+    uint8_t sat_no;
+/*    uint32_t symbolrate;*/
+    /* ?? service id*/
+
+    int dvr_fd;
+
+    struct dvb_frontend_info frontend_info;
+    struct dvb_frontend_parameters frontend_parameters;
+    int frontend_fd;
+
+    struct PIDFilterList *pid_filters;
+};
+
+DVBTuner *dvb_tuner_new(uint8_t adapter_num)
+{
+    DVBTuner *tuner = malloc(sizeof(DVBTuner));
+    if (tuner == NULL) {
+        fprintf(stderr, "Failed to allocate memory.\n");
+        return NULL;
+    }
+    memset(tuner, 0, sizeof(DVBTuner));
+    tuner->frontend_fd = -1;
+    tuner->dvr_fd = -1;
+
+    tuner->adapter_num = adapter_num;
+
+    char *frontend_dev = NULL;
+    if (_asprintf(&frontend_dev, "/dev/dvb/adapter%u/frontend0", adapter_num) < 0) {
+        fprintf(stderr, "Failed to get frontend dev string.\n");
+        goto err;
+    }
+    if ((tuner->frontend_fd = open(frontend_dev, O_CLOEXEC | O_RDWR)) < 0) {
+        fprintf(stderr, "Failed to open frontend device.\n");
+        free(frontend_dev);
+        goto err;
+    }
+    free(frontend_dev);
+
+    if ((ioctl(tuner->frontend_fd, FE_GET_INFO, &tuner->frontend_info)) < 0) {
+        fprintf(stderr, "Failed to get frontend info.\n");
+        goto err;
+    }
+
+    if (tuner->frontend_info.type != FE_QPSK) {
+        fprintf(stderr, "Adapter %u does not support DVB-S(2).\n", adapter_num);
+        goto err;
+    }
+
+    fcntl(tuner->frontend_fd, F_SETFL, O_NONBLOCK);
+
+    return tuner;
+
+err:
+    dvb_tuner_free(tuner);
+
+    return NULL;
+}
+
+void dvb_tuner_clean(DVBTuner *tuner)
+{
+    if (!tuner)
+        return;
+#define CLOSE_FD(fd) do {\
+    if (tuner->fd >= 0) {\
+        close(tuner->fd);\
+        tuner->fd = -1;\
+    }\
+} while (0)
+
+    CLOSE_FD(frontend_fd);
+    CLOSE_FD(dvr_fd);
+
+    struct PIDFilterList *tmp;
+    while (tuner->pid_filters) {
+        tmp = tuner->pid_filters->next;
+
+        ioctl(tuner->pid_filters->filter.fd, DMX_STOP);
+        close(tuner->pid_filters->filter.fd);
+
+        free(tuner->pid_filters);
+
+        tuner->pid_filters = tmp;
+    }
+
+#undef CLOSE_FD
+}
+
+void dvb_tuner_free(DVBTuner *tuner)
+{
+    if (tuner) {
+        dvb_tuner_clean(tuner);
+        free(tuner);
+    }
+}
+
+static int dvb_tuner_set_disecq(DVBTuner *tuner)
+{
+    fprintf(stderr, "dvb_tuner_set_disecq\n");
+    /* http://www.eutelsat.com/files/live/sites/eutelsatv2/files/contributed/satellites/pdf/Diseqc/Reference%20docs/bus_spec.pdf */
+    struct dvb_diseqc_master_cmd cmd = 
+    {
+        {
+            0xe0,          /* Framing byte: Run-in, Command from master, no reply required, first in this transmission */
+            0x10,          /* Address byte: any LNB, Switcher, or SMATV (Master to all …) */
+            0x38,          /* Write to port group 0 (sat_no|sat_no|pol|tone) */
+            0xf0,          /* clear all four bits */
+            0x00,
+            0x00
+        },
+        4                  /* length of data */
+    };
+
+    cmd.msg[3] = 0xf0 | ((tuner->sat_no << 2) & 0x0f)
+                      | ((tuner->polarization ? 0 : 1) << 1)
+                      | (tuner->tone ? 1 : 0);
+
+    fprintf(stderr, "FE_SET_TONE\n");
+    if (ioctl(tuner->frontend_fd, FE_SET_TONE, SEC_TONE_OFF) < 0)
+        return -1;
+
+    fprintf(stderr, "FE_SET_VOLTAGE\n");
+    if (ioctl(tuner->frontend_fd, FE_SET_VOLTAGE,
+                tuner->polarization ? SEC_VOLTAGE_13 : SEC_VOLTAGE_18) < 0)
+        return -1;
+
+    usleep(15000);
+
+    fprintf(stderr, "FE_DISEQC_SEND_MASTER_CMD\n");
+    if (ioctl(tuner->frontend_fd, FE_DISEQC_SEND_MASTER_CMD, &cmd) < 0)
+        return -1;
+
+    usleep(15000);
+
+    fprintf(stderr, "FE_DISEQC_SEND_BURST\n");
+    if (ioctl(tuner->frontend_fd, FE_DISEQC_SEND_BURST,
+                (tuner->sat_no >> 2) & 0x01 ? SEC_MINI_B : SEC_MINI_A) < 0)
+        return -1;
+
+    usleep(15000);
+
+    fprintf(stderr, "FE_SET_TONE\n");
+    if (ioctl(tuner->frontend_fd, FE_SET_TONE,
+                tuner->tone ? SEC_TONE_ON : SEC_TONE_OFF) < 0)
+        return -1;
+
+    fprintf(stderr, "set_disecq successful\n");
+    return 0;
+}
+
+static int dvb_tuner_do_tune(DVBTuner *tuner)
+{
+    fprintf(stderr, "dvb_tuner_do_tune\n");
+    struct dvb_frontend_event event;
+    struct pollfd pfd[1];
+    int rc;
+
+    /* discard stale events */
+    while (ioctl(tuner->frontend_fd, FE_GET_EVENT, &event) != -1);
+
+    fprintf(stderr, "FE_SET_FRONTEND\n");
+    if (ioctl(tuner->frontend_fd, FE_SET_FRONTEND, &tuner->frontend_parameters) < 0) {
+        return -1;
+    }
+
+    pfd[0].fd = tuner->frontend_fd;
+    pfd[0].events = POLLIN;
+
+    if (poll(pfd, 1, 3000)) {
+        if (pfd[0].revents & POLLIN) {
+            rc = ioctl(tuner->frontend_fd, FE_GET_EVENT, &event);
+#ifdef EOVERFLOW
+            if (rc == -EOVERFLOW)
+                fprintf(stderr, "EOVERFLOW\n");
+#else
+            if (rc == -EINVAL)
+                fprintf(stderr, "EINVAL\n");
+#endif
+            if (event.parameters.frequency <= 0)
+                return -1;
+        }
+    }
+
+    /* xine: timeout */
+    fe_status_t status;
+    do {
+        status = 0;
+        if (ioctl(tuner->frontend_fd, FE_READ_STATUS, &status) < 0) {
+            return -1;
+        }
+
+        if (status & FE_HAS_LOCK) {
+            fprintf(stderr, "FE_HAS_LOCK\n");
+            break;
+        }
+
+        /* cannot get lock if there is no signal -> warn user */
+
+        usleep(10000);
+    } while (!(status & FE_TIMEDOUT));
+
+    /* xine: read tuner status (log only) */
+
+    if (status & FE_HAS_LOCK && !(status & FE_TIMEDOUT)) {
+        fprintf(stderr, "do_tune successful\n");
+        return 0;
+    }
+    else {
+        return -1;
+    }
+}
+
+int dvb_tuner_tune(DVBTuner *tuner,
+                   uint32_t frequency,
+                   uint8_t polarization,
+                   uint8_t sat_no,
+                   uint32_t symbolrate,
+                   uint16_t *pids,
+                   size_t npids) /* + service id -> just for filter/epg/eit ? */
+{
+    if (tuner == NULL)
+        return -1;
+
+    /* close open file descriptors */
+
+    /* lnb switch frequency (hi band/lo band)*/
+    if (frequency > 11700000) {
+        tuner->frontend_parameters.frequency = frequency - 10600000; /* lnb frequency hi */
+        tuner->tone = 1;
+    }
+    else {
+        tuner->frontend_parameters.frequency = frequency - 9750000;  /* lnb frequency lo */
+        tuner->tone = 0;
+    }
+
+    tuner->frontend_parameters.inversion = INVERSION_AUTO;
+    tuner->polarization = polarization;
+    tuner->sat_no = sat_no;
+    tuner->frontend_parameters.u.qpsk.symbol_rate = symbolrate;
+    tuner->frontend_parameters.u.qpsk.fec_inner = FEC_AUTO;
+
+    /* actually tune, setup dvr_fd */
+    /* == set_channel
+     * + set diseqc
+     * + tune_it */
+    if (!(tuner->frontend_info.caps & FE_CAN_INVERSION_AUTO))
+        tuner->frontend_parameters.inversion = INVERSION_OFF;
+
+    if (dvb_tuner_set_disecq(tuner) < 0)
+        return -1;
+
+    if (dvb_tuner_do_tune(tuner) < 0)
+        return -1;
+
+    /* FIXME: open demux0 for every pid  (pidfilter)
+     * see: http://www.linuxtv.org/docs/dvbapi/DVB_Demux_Device.html */
+    size_t j;
+    for (j = 0; j < npids; ++j) {
+        dvb_tuner_add_pid(tuner, pids[j]);
+    }
+
+    /* FIXME: in separate function? Maybe it is necessary to first add all pids */
+    char *dvr_device = NULL;
+    if (_asprintf(&dvr_device, "/dev/dvb/adapter%u/dvr0", tuner->adapter_num) < 0) {
+        return -1;
+    }
+    tuner->dvr_fd = open(dvr_device, O_CLOEXEC | O_RDONLY | O_NONBLOCK);
+    free(dvr_device);
+
+    if (tuner->dvr_fd < 0) {
+        return -1;
+    }
+ 
+    fprintf(stderr, "tune successful\n");
+    return 0;
+}
+
+void dvb_tuner_add_pid(DVBTuner *tuner, uint16_t pid)
+{
+    if (tuner == NULL)
+        return;
+
+    struct PIDFilterList *filter = malloc(sizeof(struct PIDFilterList));
+    if (filter == NULL)
+        return;
+
+    filter->next = tuner->pid_filters;
+    filter->filter.pid = pid;
+
+    char *demux_device = NULL;
+    if (_asprintf(&demux_device, "/dev/dvb/adapter%u/demux0", tuner->adapter_num) < 0) {
+        goto err;
+    }
+
+    filter->filter.fd = open(demux_device, O_CLOEXEC | O_RDWR | O_NONBLOCK);
+    free(demux_device);
+    demux_device = NULL;
+
+    struct dmx_pes_filter_params params;
+    params.pid = pid;
+    params.input = DMX_IN_FRONTEND;
+    params.output = DMX_OUT_TS_TAP;
+    params.pes_type = DMX_PES_OTHER; /* AUDIO/VIDIO/SUBTITLE/TELETEXT/PCR */
+    params.flags = DMX_IMMEDIATE_START;
+    if (ioctl(filter->filter.fd, DMX_SET_PES_FILTER, &params) < 0) {
+        fprintf(stderr, "Error setting up filter for pid %u.\n", pid);
+        goto err;
+    }
+
+    tuner->pid_filters = filter;
+
+    fprintf(stderr, "Added pid %u\n", pid);
+    return;
+
+err:
+    if (demux_device)
+        free(demux_device);
+    free(filter);
+}
+
+int dvb_tuner_get_fd(DVBTuner *tuner)
+{
+    if (tuner)
+        return tuner->dvr_fd;
+    return -1;
+}
+#else
+struct _DVBTuner {
+    int fd;
+};
+
+DVBTuner *dvb_tuner_new(uint8_t adapter_num)
+{
+    DVBTuner *tuner = malloc(sizeof(DVBTuner));
+    if (unlikely(tuner == NULL)) {
+        fprintf(stderr, "Failed to allocate memory.\n");
+        return NULL;
+    }
+    memset(tuner, 0, sizeof(DVBTuner));
+    tuner->fd = -1;
+
+    return tuner;
+}
+
+void dvb_tuner_clean(DVBTuner *tuner)
+{
+    if (tuner) {
+        if (tuner->fd >= 0) {
+            close(tuner->fd);
+            tuner->fd = -1;
+        }
+    }
+}
+
+void dvb_tuner_free(DVBTuner *tuner)
+{
+    if (tuner) {
+        dvb_tuner_clean(tuner);
+        free(tuner);
+    }
+}
+
+int dvb_tuner_tune(DVBTuner *tuner,
+                   uint32_t frequency,
+                   uint8_t polarization,
+                   uint8_t sat_no,
+                   uint32_t symbolrate,
+                   uint16_t *pids,
+                   size_t npids)
+{
+    if (tuner == NULL)
+        return -1;
+    if (tuner->fd != -1)
+        close(tuner->fd);
+    tuner->fd = open("/tmp/ts-dummy.ts", O_CLOEXEC | O_RDONLY | O_NONBLOCK);
+
+    if (tuner->fd == -1)
+        return -1;
+    return 0;
+}
+
+void dvb_tuner_add_pid(DVBTuner *tuner, uint16_t pid)
+{
+    fprintf(stderr, "[Tuner dummy] Add pid %u\n", pid);
+}
+
+int dvb_tuner_get_fd(DVBTuner *tuner)
+{
+    if (tuner == NULL)
+        return -1;
+    return tuner->fd;
+}
+
+#endif
