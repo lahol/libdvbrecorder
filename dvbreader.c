@@ -44,6 +44,9 @@ struct _DVBReader {
 
     dvbpsi_t *dvbpsi_handles[N_TS_TABLE_TYPES];
     uint16_t dvbpsi_table_pids[N_TS_TABLE_TYPES];
+    guint32 dvbpsi_have_pat : 1;
+    guint32 dvbpsi_have_pmt : 1;
+    guint32 dvbpsi_have_sdt : 1;
 
     GList *active_pids;
     DVBTuner *tuner;
@@ -310,7 +313,6 @@ void dvb_reader_event_handle_tune_in(DVBReader *reader, DVBRecorderEventTuneIn *
     reader->tuner_fd = dvb_tuner_get_fd(reader->tuner);
     g_mutex_unlock(&reader->tuner_mutex);
 
-    dvb_reader_add_active_pid(reader, 0, DVB_FILTER_PAT);
 
     /* FIXME: notify callback about status change */
     /* wait in client for tune in and then (if ready) start stream */
@@ -352,6 +354,20 @@ gpointer dvb_reader_data_thread_proc(DVBReader *reader)
 
     reader->dvbpsi_handles[TS_TABLE_PAT] = dvbpsi_new(dvb_reader_dvbpsi_message, DVBPSI_MSG_WARN);
     dvbpsi_pat_attach(reader->dvbpsi_handles[TS_TABLE_PAT], (dvbpsi_pat_callback)dvb_reader_dvbpsi_pat_cb, reader);
+    dvb_reader_add_active_pid(reader, 0, DVB_FILTER_PAT);
+
+    reader->dvbpsi_handles[TS_TABLE_EIT] = dvbpsi_new(dvb_reader_dvbpsi_message, DVBPSI_MSG_WARN);
+    dvbpsi_AttachDemux(reader->dvbpsi_handles[TS_TABLE_EIT], dvb_reader_dvbpsi_demux_new_subtable, reader);
+    dvb_reader_add_active_pid(reader, 18, DVB_FILTER_EIT);
+
+    reader->dvbpsi_handles[TS_TABLE_SDT] = dvbpsi_new(dvb_reader_dvbpsi_message, DVBPSI_MSG_WARN);
+    dvbpsi_AttachDemux(reader->dvbpsi_handles[TS_TABLE_SDT], dvb_reader_dvbpsi_demux_new_subtable, reader);
+    dvb_reader_add_active_pid(reader, 17, DVB_FILTER_SDT);
+
+    reader->dvbpsi_handles[TS_TABLE_RST] = dvbpsi_new(dvb_reader_dvbpsi_message, DVBPSI_MSG_WARN);
+    dvbpsi_rst_attach(reader->dvbpsi_handles[TS_TABLE_RST], (dvbpsi_rst_callback)dvb_reader_dvbpsi_rst_cb, reader);
+    dvb_reader_add_active_pid(reader, 19, DVB_FILTER_RST);
+
 
     uint8_t buffer[16384];
     ssize_t bytes_read;
@@ -409,15 +425,63 @@ void dvb_reader_dvbpsi_message(dvbpsi_t *handle, const dvbpsi_msg_level_t level,
 void dvb_reader_dvbpsi_pat_cb(DVBReader *reader, dvbpsi_pat_t *pat)
 {
     fprintf(stderr, "pat_cb\n");
+    if (reader->dvbpsi_have_pat) {
+        dvbpsi_pat_delete(pat);
+        return;
+    }
+
+    dvbpsi_pat_program_t *prog;
+   
+    for (prog = pat->p_first_program; prog; prog = prog->p_next) {
+        if (prog->i_number == reader->program_number ) {
+            reader->dvbpsi_handles[TS_TABLE_PMT] = dvbpsi_new(dvb_reader_dvbpsi_message, DVBPSI_MSG_WARN);
+            dvbpsi_pmt_attach(reader->dvbpsi_handles[TS_TABLE_PMT], reader->program_number,
+                    (dvbpsi_pmt_callback)dvb_reader_dvbpsi_pmt_cb, reader);
+            reader->dvbpsi_table_pids[TS_TABLE_PMT] = prog->i_pid;
+            dvb_reader_add_active_pid(reader, prog->i_pid, DVB_FILTER_PMT);
+            break;
+        }
+    }
 
     dvbpsi_pat_delete(pat);
+
+    reader->dvbpsi_have_pat = 1;
 }
 
 void dvb_reader_dvbpsi_pmt_cb(DVBReader *reader, dvbpsi_pmt_t *pmt)
 {
     fprintf(stderr, "pmt_cb\n");
+    if (reader->dvbpsi_have_pmt) {
+        dvbpsi_pmt_delete(pmt);
+        return;
+    }
+
+    dvbpsi_pmt_es_t *stream;
+    DVBReaderFilterType type;
+    for (stream = pmt->p_first_es; stream; stream = stream->p_next) {
+        switch (stream->i_type) {
+            case 0x01:
+            case 0x02:
+                type = DVB_FILTER_VIDEO;
+                break;
+            case 0x03:
+            case 0x04:
+                type = DVB_FILTER_AUDIO;
+                break;
+            case 0x06:
+                type = DVB_FILTER_TELETEXT;
+                break;
+            default:
+                type = DVB_FILTER_UNKNOWN;
+                break;
+        }
+
+        dvb_reader_add_active_pid(reader, stream->i_pid, type);
+    }
 
     dvbpsi_pmt_delete(pmt);
+
+    reader->dvbpsi_have_pmt = 1;
 }
 
 void dvb_reader_dvbpsi_eit_cb(DVBReader *reader, dvbpsi_eit_t *eit)
