@@ -19,8 +19,6 @@ typedef enum {
 DVBRecorder *dvb_recorder_new(DVBRecorderEventCallback cb, gpointer userdata);
 void dvb_recorder_destroy(DVBRecorder *recorder);
 
-void dvb_recorder_start(DVBRecorder *recorder);
-
 int dvb_recorder_enable_video_source(DVBRecorder *recorder, gboolean enable);
 
 GList *dvb_recorder_get_channel_list(DVBRecorder *recorder);

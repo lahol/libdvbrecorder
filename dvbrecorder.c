@@ -44,13 +44,6 @@ void dvb_recorder_destroy(DVBRecorder *recorder)
     g_free(recorder);
 }
 
-void dvb_recorder_start(DVBRecorder *recorder)
-{
-    g_return_if_fail(recorder != NULL);
-
-    dvb_reader_start(recorder->reader);
-}
-
 int dvb_recorder_enable_video_source(DVBRecorder *recorder, gboolean enable)
 {
     g_return_val_if_fail(recorder != NULL, -1);

@@ -315,7 +315,8 @@ void dvb_reader_event_handle_tune_in(DVBReader *reader, DVBRecorderEventTuneIn *
 
 
     /* FIXME: notify callback about status change */
-    /* wait in client for tune in and then (if ready) start stream */
+
+    dvb_reader_start(reader);
 }
 
 gpointer dvb_reader_event_thread_proc(DVBReader *reader)
