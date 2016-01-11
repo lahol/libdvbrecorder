@@ -15,7 +15,8 @@ typedef enum {
     DVB_FILTER_EIT       = (1 << 6),
     DVB_FILTER_SDT       = (1 << 7),
     DVB_FILTER_RST       = (1 << 8),
-    DVB_FILTER_UNKNOWN   = (1 << 9)
+    DVB_FILTER_UNKNOWN   = (1 << 9),
+    DVB_FILTER_ALL       = 0x03ff
 } DVBReaderFilterType;
 
 DVBReader *dvb_reader_new(DVBRecorderEventCallback cb, gpointer userdata);
