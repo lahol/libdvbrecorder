@@ -55,11 +55,20 @@ struct _DVBReader {
     int tuner_fd;
     int control_pipe_stream[2];
     GThread *data_thread;
+
+    uint8_t pat_packet_count;
+    uint8_t *pat_data;
+    uint8_t pmt_packet_count;
+    uint8_t *pmt_data;
 };
 
 struct DVBReaderListener {
     int fd;
+    DVBReaderListenerCallback callback;
+    gpointer userdata;
     DVBReaderFilterType filter;
+    guint32 have_pat    : 1;
+    guint32 have_pmt    : 1;
     guint32 write_error : 1;
 };
 
@@ -74,6 +83,11 @@ DVBRecorderEvent *dvb_reader_pop_event(DVBReader *reader);
 
 gpointer dvb_reader_event_thread_proc(DVBReader *reader);
 gpointer dvb_reader_data_thread_proc(DVBReader *reader);
+
+void dvb_reader_rewrite_pat(DVBReader *reader, uint16_t ts_id, uint16_t program_number, uint16_t program_map_pid);
+void dvb_reader_rewrite_pmt(DVBReader *reader, dvbpsi_pmt_t *pmt);
+void dvb_reader_listener_send_pat(DVBReader *reader, struct DVBReaderListener *listener);
+void dvb_reader_listener_send_pmt(DVBReader *reader, struct DVBReaderListener *listener);
 
 void dvb_reader_dvbpsi_message(dvbpsi_t *handle, const dvbpsi_msg_level_t level, const char *msg);
 void dvb_reader_dvbpsi_pat_cb(DVBReader *reader, dvbpsi_pat_t *pat);
@@ -168,23 +182,40 @@ static gint dvb_reader_compare_listener_fd(struct DVBReaderListener *listener, g
     return 1;
 }
 
-void dvb_reader_set_listener(DVBReader *reader, int fd, DVBReaderFilterType filter)
+static gint dvb_reader_compare_listener_cb(struct DVBReaderListener *listener, gpointer callback)
+{
+    if (listener == NULL)
+        return -1;
+    if (listener->callback == callback)
+        return 0;
+    return 1;
+}
+
+void dvb_reader_set_listener(DVBReader *reader, DVBReaderFilterType filter, int fd,
+                             DVBReaderListenerCallback callback, gpointer userdata)
 {
     g_return_if_fail(reader != NULL);
 
     g_mutex_lock(&reader->listener_mutex);
 
-    GList *element = g_list_find_custom(reader->listeners, GINT_TO_POINTER(fd), (GCompareFunc)dvb_reader_compare_listener_fd);
+    GList *element = NULL;
+    if (fd >= 0) 
+        element = g_list_find_custom(reader->listeners, GINT_TO_POINTER(fd), (GCompareFunc)dvb_reader_compare_listener_fd);
+    else
+        element = g_list_find_custom(reader->listeners, callback, (GCompareFunc)dvb_reader_compare_listener_cb);
 
     fprintf(stderr, "[lib] set listener: %d\n", fd);
 
     if (element) {
         ((struct DVBReaderListener *)element->data)->filter = filter;
+        ((struct DVBReaderListener *)element->data)->userdata = userdata;
     }
     else {
         struct DVBReaderListener *listener = g_malloc0(sizeof(struct DVBReaderListener));
 
         listener->fd = fd;
+        listener->callback = callback;
+        listener->userdata = userdata;
         listener->filter = filter;
 
         reader->listeners = g_list_prepend(reader->listeners, listener);
@@ -193,13 +224,17 @@ void dvb_reader_set_listener(DVBReader *reader, int fd, DVBReaderFilterType filt
     g_mutex_unlock(&reader->listener_mutex);
 }
 
-void dvb_reader_remove_listener(DVBReader *reader, int fd)
+void dvb_reader_remove_listener(DVBReader *reader, int fd, DVBReaderListenerCallback callback)
 {
     g_return_if_fail(reader != NULL);
 
     g_mutex_lock(&reader->listener_mutex);
 
-    GList *element = g_list_find_custom(reader->listeners, GINT_TO_POINTER(fd), (GCompareFunc)dvb_reader_compare_listener_fd);
+    GList *element = NULL;
+    if (fd < 0)
+        element = g_list_find_custom(reader->listeners, callback, (GCompareFunc)dvb_reader_compare_listener_cb);
+    else
+        element = g_list_find_custom(reader->listeners, GINT_TO_POINTER(fd), (GCompareFunc)dvb_reader_compare_listener_fd);
 
     if (element) {
         reader->listeners = g_list_remove_link(reader->listeners, element);
@@ -517,9 +552,93 @@ void dvb_reader_dvbpsi_demux_new_subtable(dvbpsi_t *handle, uint8_t table_id, ui
     }
 }
 
-gboolean dvb_reader_write_packet(DVBReader *reader, const uint8_t *packet)
+void dvb_reader_rewrite_pat(DVBReader *reader, uint16_t ts_id, uint16_t program_number, uint16_t program_map_pid)
+{
+    /* have only one pat packet */
+    g_free(reader->pat_data);
+    reader->pat_packet_count = 1;
+    reader->pat_data = g_malloc(TS_SIZE);
+
+    memset(reader->pat_data, 0xff, TS_SIZE);
+    reader->pat_data[0] = 0x47; /* sync byte */
+    reader->pat_data[1] = 0x40; /* payload start + pid */
+    reader->pat_data[2] = 0x00; /* rest pid */
+    reader->pat_data[3] = 0x10; /* payload + continuity counter */
+    reader->pat_data[4] = 0x00; /* section pointer */
+    reader->pat_data[5] = 0x00; /* table_id */
+    reader->pat_data[6] = 0xB0; /* section syntax, reserved, seclen */
+    reader->pat_data[7] = 0x0D; /* section length */
+    reader->pat_data[8] = (ts_id & 0xff00) >> 8;
+    reader->pat_data[9] = (ts_id & 0x00ff);
+    reader->pat_data[10] = 0xC1; /* res, version, cur/next */
+    reader->pat_data[11] = 0x00; /* section_number */
+    reader->pat_data[12] = 0x00; /* last_section_number */
+    reader->pat_data[13] = (program_number & 0xff00) >> 8;
+    reader->pat_data[14] = (program_number & 0x00ff);
+    reader->pat_data[15] = (program_map_pid & 0xff00) >> 8 | 0xE0;
+    reader->pat_data[16] = (program_map_pid & 0x00ff);
+    /* FIXME: 17, 18, 19, 20 -> CRC32 from table_id (5) */
+}
+
+void dvb_reader_rewrite_pmt(DVBReader *reader, dvbpsi_pmt_t *pmt)
+{
+    /* push byte, take care of alloc, accumulate section_length */
+}
+
+gboolean _dvb_reader_write_packet_full(int fd, const uint8_t *packet)
 {
     ssize_t nw, offset;
+    for (offset = 0; offset < TS_SIZE; offset += nw) {
+        if ((nw = write(listener->fd, packet + offset, (size_t)(TS_SIZE - offset))) <= 0) {
+            if (nw < 0) {
+                fprintf(stderr, "Could not write.\n");
+                return FALSE;
+            }
+            break;
+        }
+    }
+
+    return TRUE;
+}
+
+void dvb_reader_listener_send_pat(DVBReader *reader, struct DVBReaderListener *listener)
+{
+     if (reader->pat_packet_count == 0)
+         return;
+
+     uint8_t i;
+     for (i = 0; i < reader->pat_packet_count; ++i) {
+         listener->have_pat = 1;
+         if (listener->fd >= 0) {
+             if (!_dvb_reader_write_packet_full(listener->fd, &reader->pat_data[i * TS_SIZE]))
+                 listener->have_pat = 0;
+         }
+         if (listener->callback) {
+             listener->callback(&reader->pat_data[i * TS_SIZE], DVB_FILTER_PAT, listener->userdata);
+         }
+     }
+}
+
+void dvb_reader_listener_send_pmt(DVBReader *reader, struct DVBReaderListener *listener)
+{
+     if (reader->pmt_packet_count == 0)
+         return;
+
+     uint8_t i;
+     for (i = 0; i < reader->pmt_packet_count; ++i) {
+         listener->have_pmt = 1;
+         if (listener->fd >= 0) {
+             if (!_dvb_reader_write_packet_full(listener->fd, &reader->pmt_data[i * TS_SIZE]))
+                 listener->have_pat = 0;
+         }
+         if (listener->callback) {
+             listener->callback(&reader->pmt_data[i * TS_SIZE], DVB_FILTER_PMT, listener->userdata);
+         }
+     }
+}
+
+gboolean dvb_reader_write_packet(DVBReader *reader, const uint8_t *packet)
+{
     GList *tmp;
     struct DVBReaderListener *listener;
     DVBReaderFilterType type = dvb_reader_get_active_pid_type(reader, ts_get_pid(packet));
@@ -527,15 +646,15 @@ gboolean dvb_reader_write_packet(DVBReader *reader, const uint8_t *packet)
     g_mutex_lock(&reader->listener_mutex);
     for (tmp = reader->listeners; tmp; tmp = g_list_next(tmp)) {
         listener = (struct DVBReaderListener *)tmp->data;
-        if ((listener->filter & type) && listener->fd >= 0 && !listener->write_error) {
-            for (offset = 0; offset < TS_SIZE; offset += nw) {
-                if ((nw = write(listener->fd, packet + offset, (size_t)(TS_SIZE - offset))) <= 0) {
-                    if (nw < 0) {
-                        fprintf(stderr, "Could not write.\n");
-                        listener->write_error = 1;
-                    }
+        if ((listener->filter & type)) {
+            if (listener->fd >= 0 && !listener->write_error) {
+                if (!_dvb_reader_write_packet_full(listener->fd, packet)) {
+                    listener->write_error = 1;
                     break;
                 }
+            }
+            if (listener->callback) {
+                listener->callback(packet, type, listener->userdata);
             }
         }
     }

@@ -22,8 +22,12 @@ typedef enum {
 DVBReader *dvb_reader_new(DVBRecorderEventCallback cb, gpointer userdata);
 void dvb_reader_destroy(DVBReader *reader);
 
-void dvb_reader_set_listener(DVBReader *reader, int fd, DVBReaderFilterType filter);
-void dvb_reader_remove_listener(DVBReader *reader, int fd);
+/* packet [188], type, userdata */
+typedef void (*DVBReaderListenerCallback)(const uint8_t *, DVBReaderFilterType, gpointer);
+
+void dvb_reader_set_listener(DVBReader *reader, DVBReaderFilterType filter, int fd,
+                             DVBReaderListenerCallback callback, gpointer userdata);
+void dvb_reader_remove_listener(DVBReader *reader, int fd, DVBReaderListenerCallback callback);
 
 void dvb_reader_tune(DVBReader *reader,
                      guint32 frequency,
