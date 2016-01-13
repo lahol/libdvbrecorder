@@ -23,7 +23,7 @@ DVBReader *dvb_reader_new(DVBRecorderEventCallback cb, gpointer userdata);
 void dvb_reader_destroy(DVBReader *reader);
 
 /* packet [188], type, userdata */
-typedef void (*DVBReaderListenerCallback)(const uint8_t *, DVBReaderFilterType, gpointer);
+typedef void (*DVBReaderListenerCallback)(const guint8 *, DVBReaderFilterType, gpointer);
 
 void dvb_reader_set_listener(DVBReader *reader, DVBReaderFilterType filter, int fd,
                              DVBReaderListenerCallback callback, gpointer userdata);

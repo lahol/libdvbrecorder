@@ -63,7 +63,7 @@ int dvb_recorder_enable_video_source(DVBRecorder *recorder, gboolean enable)
         return recorder->video_pipe[0];
     }
     else {
-        dvb_reader_remove_listener(recorder->reader, recorder->video_pipe[1]);
+        dvb_reader_remove_listener(recorder->reader, recorder->video_pipe[1], NULL);
         close(recorder->video_pipe[0]);
         close(recorder->video_pipe[1]);
         recorder->video_pipe[0] = -1;
