@@ -29,6 +29,9 @@ void dvb_reader_set_listener(DVBReader *reader, DVBReaderFilterType filter, int 
                              DVBReaderListenerCallback callback, gpointer userdata);
 void dvb_reader_remove_listener(DVBReader *reader, int fd, DVBReaderListenerCallback callback);
 
+gboolean dvb_reader_get_current_pat_packets(DVBReader *reader, guint8 **buffer, gsize *length);
+gboolean dvb_reader_get_current_pmt_packets(DVBReader *reader, guint8 **buffer, gsize *length);
+
 void dvb_reader_tune(DVBReader *reader,
                      guint32 frequency,
                      guint8  polarization,

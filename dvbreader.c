@@ -739,6 +739,40 @@ void dvb_reader_listener_send_pmt(DVBReader *reader, struct DVBReaderListener *l
     }
 }
 
+gboolean dvb_reader_get_current_pat_packets(DVBReader *reader, guint8 **buffer, gsize *length)
+{
+    g_return_val_if_fail(reader != NULL, FALSE);
+
+    if (reader->pat_packet_count == 0)
+        return FALSE;
+
+    if (buffer) {
+        *buffer = g_malloc(reader->pat_packet_count * TS_SIZE);
+        memcpy(*buffer, reader->pat_data, reader->pat_packet_count * TS_SIZE);
+    }
+    if (length)
+        *length = (gsize)(reader->pat_packet_count * TS_SIZE);
+
+    return TRUE;
+}
+
+gboolean dvb_reader_get_current_pmt_packets(DVBReader *reader, guint8 **buffer, gsize *length)
+{
+    g_return_val_if_fail(reader != NULL, FALSE);
+
+    if (reader->pmt_packet_count == 0)
+        return FALSE;
+
+    if (buffer) {
+        *buffer = g_malloc(reader->pmt_packet_count * TS_SIZE);
+        memcpy(*buffer, reader->pmt_data, reader->pmt_packet_count * TS_SIZE);
+    }
+    if (length)
+        *length = (gsize)(reader->pmt_packet_count * TS_SIZE);
+
+    return TRUE;
+}
+
 gboolean dvb_reader_write_packet(DVBReader *reader, const uint8_t *packet)
 {
     GList *tmp;
