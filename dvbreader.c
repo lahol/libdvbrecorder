@@ -21,6 +21,8 @@
 #include <dvbpsi/sdt.h>
 #include <dvbpsi/rst.h>
 
+#include "descriptors.h"
+
 struct _DVBReader {
     DVBRecorderEventCallback event_cb;
     gpointer event_data;
@@ -33,6 +35,8 @@ struct _DVBReader {
     guint8  sat_no;
     guint32 symbol_rate;
     guint16 program_number;
+
+    dvb_si_descriptor_service *service_info;
 
     DVBStreamStatus status;
 
@@ -452,6 +456,23 @@ gpointer dvb_reader_data_thread_proc(DVBReader *reader)
     return NULL;
 }
 
+gboolean dvb_reader_get_stream_info(DVBReader *reader, gchar **provider, gchar **name, guint8 *type)
+{
+    g_return_val_if_fail(reader != NULL, FALSE);
+
+    if (reader->service_info == NULL)
+        return FALSE;
+
+    if (provider)
+        *provider = g_strdup(reader->service_info->provider);
+    if (name)
+        *name = g_strdup(reader->service_info->name);
+    if (type)
+        *type = reader->service_info->type;
+
+    return TRUE;
+}
+
 /************************************************
  *
  *  TS handling
@@ -468,6 +489,20 @@ void dvb_reader_dvbpsi_message(dvbpsi_t *handle, const dvbpsi_msg_level_t level,
             break;
     }
     fprintf(stderr, "%s\n", msg);
+}
+
+GList *dvb_reader_dvbpsi_handle_descriptors(DVBReader *reader, dvbpsi_descriptor_t *desc)
+{
+    GList *descriptors = NULL;
+    dvb_si_descriptor *d;
+    while (desc) {
+        d = dvb_si_descriptor_decode(desc);
+        if (d)
+            descriptors = g_list_prepend(descriptors, d);
+        desc = desc->p_next;
+    }
+
+    return g_list_reverse(descriptors);
 }
 
 void dvb_reader_dvbpsi_pat_cb(DVBReader *reader, dvbpsi_pat_t *pat)
@@ -546,9 +581,32 @@ void dvb_reader_dvbpsi_eit_cb(DVBReader *reader, dvbpsi_eit_t *eit)
 
 void dvb_reader_dvbpsi_sdt_cb(DVBReader *reader, dvbpsi_sdt_t *sdt)
 {
-    fprintf(stderr, "sdt_cb\n");
+    if (reader->dvbpsi_have_sdt) {
+        dvbpsi_sdt_delete(sdt);
+        return;
+    }
+    dvbpsi_sdt_service_t *service;
+    GList *desc_list = NULL;
+    for (service = sdt->p_first_service; service; service = service->p_next) {
+        if (service->i_service_id == reader->program_number) {
+            desc_list = dvb_reader_dvbpsi_handle_descriptors(reader, service->p_first_descriptor);
+            break;
+        }
+    }
 
+    GList *tmp;
+    for (tmp = desc_list; tmp; tmp = g_list_next(tmp)) {
+        if (((dvb_si_descriptor *)tmp->data)->tag == 0x48) { /* service descriptor */
+            reader->service_info = (dvb_si_descriptor_service *)tmp->data;
+            tmp->data = NULL;
+            break;
+        }
+    }
+    
     dvbpsi_sdt_delete(sdt);
+    g_list_free_full(desc_list, (GDestroyNotify)dvb_si_descriptor_free);
+
+    reader->dvbpsi_have_sdt = 1;
 }
 
 void dvb_reader_dvbpsi_rst_cb(DVBReader *reader, dvbpsi_rst_t *rst)

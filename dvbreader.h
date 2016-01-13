@@ -32,6 +32,8 @@ void dvb_reader_remove_listener(DVBReader *reader, int fd, DVBReaderListenerCall
 gboolean dvb_reader_get_current_pat_packets(DVBReader *reader, guint8 **buffer, gsize *length);
 gboolean dvb_reader_get_current_pmt_packets(DVBReader *reader, guint8 **buffer, gsize *length);
 
+gboolean dvb_reader_get_stream_info(DVBReader *reader, gchar **provider, gchar **name, guint8 *type);
+
 DVBStreamStatus dvb_reader_get_stream_status(DVBReader *reader);
 
 void dvb_reader_tune(DVBReader *reader,

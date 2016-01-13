@@ -158,6 +158,17 @@ gboolean dvb_recorder_record_start(DVBRecorder *recorder, const gchar *filename)
         return FALSE;
     }
 
+    /* in extra function: allow placeholders in (user-defined) filename:
+     * %{station_name}, %{station_provider}, %{date:%Y%m%d} */
+    gchar *provider = NULL, *name = NULL;
+    guint8 type;
+    if (dvb_reader_get_stream_info(recorder->reader, &provider, &name, &type)) {
+        fprintf(stderr, "Provider: %s\nName: %s\nType: %d\n",
+                provider, name, type);
+        g_free(provider);
+        g_free(name);
+    }
+
     recorder->record_fd = open(filename, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
     if (recorder->record_fd == -1) {
         fprintf(stderr, "Failed to open %s: (%d) %s\n", filename, errno, strerror(errno));
