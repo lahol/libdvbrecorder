@@ -595,15 +595,16 @@ void dvb_reader_dvbpsi_section_to_ts_packets(uint16_t pid, dvbpsi_psi_section_t 
         if (G_UNLIKELY(first)) {
             ts_set_unitstart(current);
             current[4] = 0x00; /* pointer */
+            current += 5;
             if (left_to_write < 183) {
-                memcpy(&current[5], pdata, left_to_write);
+                memcpy(current, pdata, left_to_write);
                 pdata += left_to_write;
                 current += left_to_write;
                 left_to_write = 0;
                 break;
             }
             else {
-                memcpy(&current[5], pdata, 183);
+                memcpy(current, pdata, 183);
                 pdata += 183;
                 current += 183;
                 left_to_write -= 183;
@@ -611,15 +612,16 @@ void dvb_reader_dvbpsi_section_to_ts_packets(uint16_t pid, dvbpsi_psi_section_t 
             first = FALSE;
         }
         else {
+            current += 4;
             if (left_to_write < 184) {
-                memcpy(&current[4], pdata, left_to_write);
+                memcpy(current, pdata, left_to_write);
                 pdata += left_to_write;
                 current += left_to_write;
                 left_to_write = 0;
                 break;
             }
             else {
-                memcpy(&current[4], pdata, 184);
+                memcpy(current, pdata, 184);
                 pdata += 184;
                 current += 184;
                 left_to_write -= 184;
@@ -653,31 +655,6 @@ void dvb_reader_rewrite_pat(DVBReader *reader, uint16_t ts_id, uint16_t program_
     dvbpsi_DeletePSISections(section);
     dvbpsi_pat_delete(pat);
     dvbpsi_delete(encoder_handle);
-
-#if 0
-    reader->pat_packet_count = 1;
-    reader->pat_data = g_malloc(TS_SIZE);
-
-    memset(reader->pat_data, 0xff, TS_SIZE);
-    reader->pat_data[0] = 0x47; /* sync byte */
-    reader->pat_data[1] = 0x40; /* payload start + pid */
-    reader->pat_data[2] = 0x00; /* rest pid */
-    reader->pat_data[3] = 0x10; /* payload + continuity counter */
-    reader->pat_data[4] = 0x00; /* section pointer */
-    reader->pat_data[5] = 0x00; /* table_id */
-    reader->pat_data[6] = 0xB0; /* section syntax, reserved, seclen */
-    reader->pat_data[7] = 0x0D; /* section length */
-    reader->pat_data[8] = (ts_id & 0xff00) >> 8;
-    reader->pat_data[9] = (ts_id & 0x00ff);
-    reader->pat_data[10] = 0xC1; /* res, version, cur/next */
-    reader->pat_data[11] = 0x00; /* section_number */
-    reader->pat_data[12] = 0x00; /* last_section_number */
-    reader->pat_data[13] = (program_number & 0xff00) >> 8;
-    reader->pat_data[14] = (program_number & 0x00ff);
-    reader->pat_data[15] = (program_map_pid & 0xff00) >> 8 | 0xE0;
-    reader->pat_data[16] = (program_map_pid & 0x00ff);
-    /* FIXME: 17, 18, 19, 20 -> CRC32 from table_id (5) */
-#endif
 }
 
 void dvb_reader_rewrite_pmt(DVBReader *reader, dvbpsi_pmt_t *pmt)
@@ -711,40 +688,55 @@ gboolean _dvb_reader_write_packet_full(int fd, const uint8_t *packet)
     return TRUE;
 }
 
+void _dump_packet(const uint8_t *packet)
+{
+    uint16_t i;
+    for (i = 0; i < TS_SIZE; ++i) {
+        fprintf(stderr, "%02x ", packet[i]);
+        if (i % 16 == 15)
+            fprintf(stderr, "\n");
+    }
+    fprintf(stderr, "\n");
+}
+
 void dvb_reader_listener_send_pat(DVBReader *reader, struct DVBReaderListener *listener)
 {
-     if (reader->pat_packet_count == 0)
-         return;
+    if (reader->pat_packet_count == 0)
+        return;
 
-     uint8_t i;
-     for (i = 0; i < reader->pat_packet_count; ++i) {
-         listener->have_pat = 1;
-         if (listener->fd >= 0) {
-             if (!_dvb_reader_write_packet_full(listener->fd, &reader->pat_data[i * TS_SIZE]))
-                 listener->have_pat = 0;
-         }
-         if (listener->callback) {
-             listener->callback(&reader->pat_data[i * TS_SIZE], DVB_FILTER_PAT, listener->userdata);
-         }
-     }
+    uint8_t i;
+    for (i = 0; i < reader->pat_packet_count; ++i) {
+        fprintf(stderr, "PAT[%d]:\n", i);
+        _dump_packet(&reader->pat_data[i * TS_SIZE]);
+        listener->have_pat = 1;
+        if (listener->fd >= 0) {
+            if (!_dvb_reader_write_packet_full(listener->fd, &reader->pat_data[i * TS_SIZE]))
+                listener->have_pat = 0;
+        }
+        if (listener->callback) {
+            listener->callback(&reader->pat_data[i * TS_SIZE], DVB_FILTER_PAT, listener->userdata);
+        }
+    }
 }
 
 void dvb_reader_listener_send_pmt(DVBReader *reader, struct DVBReaderListener *listener)
 {
-     if (reader->pmt_packet_count == 0)
-         return;
+    if (reader->pmt_packet_count == 0)
+        return;
 
-     uint8_t i;
-     for (i = 0; i < reader->pmt_packet_count; ++i) {
-         listener->have_pmt = 1;
-         if (listener->fd >= 0) {
-             if (!_dvb_reader_write_packet_full(listener->fd, &reader->pmt_data[i * TS_SIZE]))
-                 listener->have_pat = 0;
-         }
-         if (listener->callback) {
-             listener->callback(&reader->pmt_data[i * TS_SIZE], DVB_FILTER_PMT, listener->userdata);
-         }
-     }
+    uint8_t i;
+    for (i = 0; i < reader->pmt_packet_count; ++i) {
+        fprintf(stderr, "PMT[%d]:\n", i);
+        _dump_packet(&reader->pmt_data[i * TS_SIZE]);
+        listener->have_pmt = 1;
+        if (listener->fd >= 0) {
+            if (!_dvb_reader_write_packet_full(listener->fd, &reader->pmt_data[i * TS_SIZE]))
+                listener->have_pat = 0;
+        }
+        if (listener->callback) {
+            listener->callback(&reader->pmt_data[i * TS_SIZE], DVB_FILTER_PMT, listener->userdata);
+        }
+    }
 }
 
 gboolean dvb_reader_write_packet(DVBReader *reader, const uint8_t *packet)
