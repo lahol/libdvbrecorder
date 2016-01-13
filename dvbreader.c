@@ -34,7 +34,7 @@ struct _DVBReader {
     guint32 symbol_rate;
     guint16 program_number;
 
-    guint8  status;
+    DVBStreamStatus status;
 
     GMutex event_mutex;
     GCond  event_cond;
@@ -146,6 +146,13 @@ void dvb_reader_destroy(DVBReader *reader)
 
     g_list_free_full(reader->listeners, g_free);
     g_list_free_full(reader->active_pids, g_free);
+}
+
+DVBStreamStatus dvb_reader_get_stream_status(DVBReader *reader)
+{
+    if (reader == NULL)
+        return DVB_STREAM_STATUS_UNKNOWN;
+    return reader->status;
 }
 
 void dvb_reader_add_active_pid(DVBReader *reader, uint16_t pid, DVBReaderFilterType type)
@@ -272,12 +279,16 @@ void dvb_reader_start(DVBReader *reader)
     if (pipe(reader->control_pipe_stream) != 0)
         fprintf(stderr, "Error creating control pipe.\n");
 
+    reader->status = DVB_STREAM_STATUS_RUNNING;
+
     reader->data_thread = g_thread_new("DataThread", (GThreadFunc)dvb_reader_data_thread_proc, reader);
 }
 
 void dvb_reader_stop(DVBReader *reader)
 {
     g_return_if_fail(reader != NULL);
+
+    reader->status = DVB_STREAM_STATUS_STOPPED;
 
     if (reader->control_pipe_stream[1] >= 0) {
         write(reader->control_pipe_stream[1], "quit", 4);
@@ -327,6 +338,7 @@ DVBRecorderEvent *dvb_reader_pop_event(DVBReader *reader)
 
     return event;
 }
+
 
 void dvb_reader_event_handle_tune_in(DVBReader *reader, DVBRecorderEventTuneIn *event)
 {

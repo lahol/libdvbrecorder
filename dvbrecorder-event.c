@@ -19,6 +19,8 @@ void dvb_recorder_event_tune_in_set_property(DVBRecorderEvent *event,
                                              const gchar *prop_name, const gpointer prop_value);
 void dvb_recorder_event_stop_thread_set_property(DVBRecorderEvent *event,
                                                  const gchar *prop_name, const gpointer prop_value);
+void dvb_recorder_event_record_status_changed_set_property(DVBRecorderEvent *event,
+        const gchar *prop_name, const gpointer prop_value);
 
 static struct DREventClass event_classes[] = {
     { DVB_RECORDER_EVENT_TUNED, sizeof(DVBRecorderEventTuned),
@@ -30,7 +32,9 @@ static struct DREventClass event_classes[] = {
     { DVB_RECORDER_EVENT_TUNE_IN, sizeof(DVBRecorderEventTuneIn),
         dvb_recorder_event_tune_in_set_property, NULL },
     { DVB_RECORDER_EVENT_STOP_THREAD, sizeof(DVBRecorderEventStopThread),
-        dvb_recorder_event_stop_thread_set_property, NULL }
+        dvb_recorder_event_stop_thread_set_property, NULL },
+    { DVB_RECORDER_EVENT_RECORD_STATUS_CHANGED, sizeof(DVBRecorderEventRecordStatusChanged),
+        dvb_recorder_event_record_status_changed_set_property, NULL },
 };
 
 struct DREventClass *dvb_recorder_event_get_class(DVBRecorderEventType type)
@@ -40,7 +44,7 @@ struct DREventClass *dvb_recorder_event_get_class(DVBRecorderEventType type)
     return &event_classes[type];
 }
 
-DVBRecorderEvent *dvb_recorder_event_new(DVBRecorderEventType type, ...)
+DVBRecorderEvent *dvb_recorder_event_new_valist(DVBRecorderEventType type, va_list ap)
 {
     struct DREventClass *cls = dvb_recorder_event_get_class(type);
     if (!cls || cls->size == 0)
@@ -48,12 +52,9 @@ DVBRecorderEvent *dvb_recorder_event_new(DVBRecorderEventType type, ...)
     DVBRecorderEvent *event = g_malloc0(cls->size);
     event->type = type;
 
-    va_list ap;
 
     gchar *prop_name;
     gpointer prop_value;
-
-    va_start(ap, type);
 
     while (1) {
         prop_name = va_arg(ap, gchar *);
@@ -63,6 +64,18 @@ DVBRecorderEvent *dvb_recorder_event_new(DVBRecorderEventType type, ...)
         if (cls->event_set_property)
             cls->event_set_property(event, prop_name, prop_value);
     }
+
+
+    return event;
+}
+
+DVBRecorderEvent *dvb_recorder_event_new(DVBRecorderEventType type, ...)
+{
+    DVBRecorderEvent *event = NULL;
+    va_list ap;
+    va_start(ap, type);
+
+    event = dvb_recorder_event_new_valist(type, ap);
 
     va_end(ap);
 
@@ -167,3 +180,17 @@ void dvb_recorder_event_stop_thread_set_property(DVBRecorderEvent *event,
 {
 }
 
+void dvb_recorder_event_record_status_changed_set_property(DVBRecorderEvent *event,
+        const gchar *prop_name, const gpointer prop_value)
+{
+    if (!event)
+        return;
+    DVBRecorderEventRecordStatusChanged *ev = (DVBRecorderEventRecordStatusChanged *)event;
+
+    if (g_strcmp0(prop_name, "status") == 0) {
+        ev->status = GPOINTER_TO_INT(prop_value);
+    }
+    else {
+        fprintf(stderr, "Unknown property: %s\n", prop_name);
+    }
+}

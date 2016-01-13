@@ -8,6 +8,7 @@ typedef enum {
     DVB_RECORDER_EVENT_SOURCE_FD_CHANGED,
     DVB_RECORDER_EVENT_TUNE_IN,
     DVB_RECORDER_EVENT_STOP_THREAD,
+    DVB_RECORDER_EVENT_RECORD_STATUS_CHANGED,
     DVB_RECORDER_EVENT_COUNT
 } DVBRecorderEventType;
 
@@ -16,6 +17,12 @@ typedef enum {
     DVB_STREAM_STATUS_RUNNING,
     DVB_STREAM_STATUS_STOPPED
 } DVBStreamStatus;
+
+typedef enum {
+    DVB_RECORD_STATUS_UNKNOWN = 0,
+    DVB_RECORD_STATUS_RECORDING,
+    DVB_RECORD_STATUS_STOPPED
+} DVBRecordStatus;
 
 typedef struct {
     DVBRecorderEventType type;
@@ -49,6 +56,11 @@ typedef struct {
 typedef struct {
     DVBRecorderEvent parent;
 } DVBRecorderEventStopThread;
+
+typedef struct {
+    DVBRecorderEvent parent;
+    DVBRecordStatus status;
+} DVBRecorderEventRecordStatusChanged;
 
 struct _DVBRecorder;
 typedef void (*DVBRecorderEventCallback)(struct _DVBRecorder *, DVBRecorderEvent *, gpointer);
