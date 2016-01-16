@@ -8,7 +8,7 @@
 #include <time.h>
 #include "dvbrecorder.h"
 #include "dvbreader.h"
-#include "dvbrecorder-event.h"
+#include "events.h"
 #include "read-ts.h"
 
 struct _DVBRecorder {

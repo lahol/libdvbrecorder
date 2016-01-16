@@ -1,7 +1,7 @@
 #pragma once
 
 #include <glib.h>
-#include "dvbrecorder-event.h"
+#include "events.h"
 
 typedef struct _DVBReader DVBReader;
 

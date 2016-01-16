@@ -2,8 +2,8 @@
 
 #include <glib.h>
 
-#include "dvbrecorder-channel.h"
-#include "dvbrecorder-event.h"
+#include "channels.h"
+#include "events.h"
 
 typedef struct _DVBRecorder DVBRecorder;
 

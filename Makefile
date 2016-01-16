@@ -27,7 +27,8 @@ install: libdvbrecorder.so.1.0
 	install libdvbrecorder.so.1.0 $(PREFIX)/lib/
 	ln -sf $(PREFIX)/lib/libdvbrecorder.so.1.0 $(PREFIX)/lib/libdvbrecorder.so.1
 	ln -sf $(PREFIX)/lib/libdvbrecorder.so.1 $(PREFIX)/lib/libdvbrecorder.so
-	cp dvbrecorder.h dvbrecorder-event.h dvbrecorder-channel.h $(PREFIX)/include
+	install -d $(PREFIX)/include/dvbrecorder
+	install dvbrecorder.h events.h channels.h $(PREFIX)/include/dvbrecorder
 
 clean:
 	$(RM) -f libdvbrecorder.so.1.0 $(dr_OBJ)

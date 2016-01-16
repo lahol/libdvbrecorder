@@ -7,7 +7,7 @@
 
 #include "dvbreader.h"
 #include "dvbrecorder.h"
-#include "dvbrecorder-event.h"
+#include "events.h"
 #include "read-ts.h"
 #include "dvb-tuner.h"
 

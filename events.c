@@ -1,4 +1,4 @@
-#include "dvbrecorder-event.h"
+#include "events.h"
 #include <stdarg.h>
 #include <stdio.h>
 
