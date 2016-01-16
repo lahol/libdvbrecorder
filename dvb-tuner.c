@@ -289,6 +289,7 @@ int dvb_tuner_tune(DVBTuner *tuner,
         return -1;
 
     /* close open file descriptors */
+    dvb_tuner_clean(tuner);
 
     /* lnb switch frequency (hi band/lo band)*/
     if (frequency > 11700000) {
@@ -319,14 +320,12 @@ int dvb_tuner_tune(DVBTuner *tuner,
     if (dvb_tuner_do_tune(tuner) < 0)
         return -1;
 
-    /* FIXME: open demux0 for every pid  (pidfilter)
-     * see: http://www.linuxtv.org/docs/dvbapi/DVB_Demux_Device.html */
+    /* see: http://www.linuxtv.org/docs/dvbapi/DVB_Demux_Device.html */
     size_t j;
     for (j = 0; j < npids; ++j) {
         dvb_tuner_add_pid(tuner, pids[j]);
     }
 
-    /* FIXME: in separate function? Maybe it is necessary to first add all pids */
     char *dvr_device = NULL;
     if (_asprintf(&dvr_device, "/dev/dvb/adapter%u/dvr0", tuner->adapter_num) < 0) {
         return -1;

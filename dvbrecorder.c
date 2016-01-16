@@ -29,28 +29,18 @@ struct _DVBRecorder {
     gsize record_size;
 };
 
-void dvb_recorder_event_callback(DVBRecorder *recorder, DVBRecorderEvent *event, gpointer userdata)
+void dvb_recorder_event_callback(DVBRecorderEvent *event, gpointer userdata)
 {
-}
-
-void dvb_recorder_event_send(DVBRecorder *recorder, DVBRecorderEventType type, ...)
-{
-    g_return_if_fail(recorder != NULL);
-    if (recorder->event_cb == NULL)
+    DVBRecorder *recorder = (DVBRecorder *)userdata;
+    if (!recorder || !recorder->event_cb)
         return;
-    
-    DVBRecorderEvent *event = NULL;
-    va_list ap;
-    va_start(ap, type);
-    event = dvb_recorder_event_new_valist(type, ap);
-    va_end(ap);
-
-    if (event == NULL)
-        return;
-
-    recorder->event_cb(recorder, event, recorder->event_data);
-
-    dvb_recorder_event_destroy(event);
+    switch (event->type) {
+        case DVB_RECORDER_EVENT_STREAM_STATUS_CHANGED:
+            recorder->event_cb(event, recorder->event_data);
+            break;
+        default:
+            break;
+    }
 }
 
 DVBRecorder *dvb_recorder_new(DVBRecorderEventCallback cb, gpointer userdata)
@@ -60,7 +50,7 @@ DVBRecorder *dvb_recorder_new(DVBRecorderEventCallback cb, gpointer userdata)
     recorder->event_cb = cb;
     recorder->event_data = userdata;
 
-    recorder->reader = dvb_reader_new(dvb_recorder_event_callback, NULL);
+    recorder->reader = dvb_reader_new(dvb_recorder_event_callback, recorder);
 
     return recorder;
 }
@@ -90,13 +80,17 @@ int dvb_recorder_enable_video_source(DVBRecorder *recorder, gboolean enable)
 
     recorder->video_source_enabled = enable;
     if (enable) {
-        pipe(recorder->video_pipe);
+        if (pipe(recorder->video_pipe) != 0) {
+            fprintf(stderr, "pipe failed: (%d) %s\n", errno, strerror(errno));
+        }
+        fprintf(stderr, "video_pipe: %d/%d\n", recorder->video_pipe[0], recorder->video_pipe[1]);
         /* for decoding (gstreamer) pat and pmt are necessary */
         dvb_reader_set_listener(recorder->reader,
                 DVB_FILTER_VIDEO | DVB_FILTER_AUDIO | DVB_FILTER_TELETEXT |
                 DVB_FILTER_SUBTITLES | DVB_FILTER_PAT | DVB_FILTER_PMT/* | DVB_FILTER_UNKNOWN*/,
                 recorder->video_pipe[1], NULL, NULL);
 
+        fprintf(stderr, "video_pipe: %d\n", recorder->video_pipe[0]);
         return recorder->video_pipe[0];
     }
     else {
@@ -186,7 +180,8 @@ gboolean dvb_recorder_record_start(DVBRecorder *recorder, const gchar *filename)
     dvb_reader_set_listener(recorder->reader, DVB_FILTER_ALL, -1,
             (DVBReaderListenerCallback)dvb_recorder_record_callback, recorder);
 
-    dvb_recorder_event_send(recorder, DVB_RECORDER_EVENT_RECORD_STATUS_CHANGED,
+    dvb_recorder_event_send(DVB_RECORDER_EVENT_RECORD_STATUS_CHANGED,
+            recorder->event_cb, recorder->event_data,
             "status", DVB_RECORD_STATUS_RECORDING,
             NULL, NULL);
     return TRUE;
@@ -204,7 +199,8 @@ void dvb_recorder_record_stop(DVBRecorder *recorder)
     recorder->record_status = DVB_RECORD_STATUS_STOPPED;
     time(&recorder->record_end);
 
-    dvb_recorder_event_send(recorder, DVB_RECORDER_EVENT_RECORD_STATUS_CHANGED,
+    dvb_recorder_event_send(DVB_RECORDER_EVENT_RECORD_STATUS_CHANGED,
+            recorder->event_cb, recorder->event_data,
             "status", DVB_RECORD_STATUS_STOPPED,
             NULL, NULL);
 }

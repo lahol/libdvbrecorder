@@ -38,6 +38,3 @@ DVBRecorderEvent *dvb_recorder_event_new_valist(DVBRecorderEventType type, va_li
 
 void dvb_recorder_event_set_property(DVBRecorderEvent *event, const gchar *prop_name, const gpointer prop_value);
 void dvb_recorder_event_destroy(DVBRecorderEvent *event);
-
-void dvb_recorder_event_send(struct _DVBRecorder *recorder, DVBRecorderEventType type, ...);
-

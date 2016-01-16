@@ -81,6 +81,8 @@ struct DVBPidDescription {
     DVBReaderFilterType type;
 };
 
+void dvb_reader_reset(DVBReader *reader);
+
 void dvb_reader_push_event(DVBReader *reader, DVBRecorderEvent *event);
 void dvb_reader_push_event_next(DVBReader *reader, DVBRecorderEvent *event);
 DVBRecorderEvent *dvb_reader_pop_event(DVBReader *reader);
@@ -116,11 +118,7 @@ DVBReader *dvb_reader_new(DVBRecorderEventCallback cb, gpointer userdata)
     g_cond_init(&reader->event_cond);
     g_queue_init(&reader->event_queue);
 
-    reader->dvbpsi_table_pids[TS_TABLE_PAT] = 0;
-    reader->dvbpsi_table_pids[TS_TABLE_PMT] = 0xffff;
-    reader->dvbpsi_table_pids[TS_TABLE_EIT] = 18;
-    reader->dvbpsi_table_pids[TS_TABLE_SDT] = 17;
-    reader->dvbpsi_table_pids[TS_TABLE_RST] = 19;
+    dvb_reader_reset(reader);
 
     reader->control_pipe_stream[0] = -1;
     reader->control_pipe_stream[1] = -1;
@@ -132,12 +130,74 @@ DVBReader *dvb_reader_new(DVBRecorderEventCallback cb, gpointer userdata)
     return reader;
 }
 
-void dvb_reader_destroy(DVBReader *reader)
+void dvb_reader_reset(DVBReader *reader)
 {
     if (!reader)
         return;
 
     dvb_reader_stop(reader);
+
+    dvb_si_descriptor_free((dvb_si_descriptor *)reader->service_info);
+    reader->service_info = NULL;
+
+    reader->status = DVB_RECORD_STATUS_UNKNOWN;
+
+    if (reader->dvbpsi_handles[TS_TABLE_PAT] && reader->dvbpsi_handles[TS_TABLE_PAT]->p_decoder)
+        dvbpsi_pat_detach(reader->dvbpsi_handles[TS_TABLE_PAT]);
+    if (reader->dvbpsi_handles[TS_TABLE_PMT] && reader->dvbpsi_handles[TS_TABLE_PMT]->p_decoder)
+        dvbpsi_pmt_detach(reader->dvbpsi_handles[TS_TABLE_PMT]);
+    if (reader->dvbpsi_handles[TS_TABLE_EIT] && reader->dvbpsi_handles[TS_TABLE_EIT]->p_decoder)
+        dvbpsi_DetachDemux(reader->dvbpsi_handles[TS_TABLE_EIT]);
+    if (reader->dvbpsi_handles[TS_TABLE_SDT] && reader->dvbpsi_handles[TS_TABLE_SDT]->p_decoder)
+        dvbpsi_DetachDemux(reader->dvbpsi_handles[TS_TABLE_SDT]);
+    if (reader->dvbpsi_handles[TS_TABLE_RST] && reader->dvbpsi_handles[TS_TABLE_RST]->p_decoder)
+        dvbpsi_pmt_detach(reader->dvbpsi_handles[TS_TABLE_RST]);
+
+    int i;
+    for (i = 0; i < N_TS_TABLE_TYPES; ++i) {
+        if (reader->dvbpsi_handles[i]) {
+            dvbpsi_delete(reader->dvbpsi_handles[i]);
+            reader->dvbpsi_handles[i] = NULL;
+        }
+    }
+
+    reader->dvbpsi_table_pids[TS_TABLE_PAT] = 0;
+    reader->dvbpsi_table_pids[TS_TABLE_PMT] = 0xffff;
+    reader->dvbpsi_table_pids[TS_TABLE_EIT] = 18;
+    reader->dvbpsi_table_pids[TS_TABLE_SDT] = 17;
+    reader->dvbpsi_table_pids[TS_TABLE_RST] = 19;
+
+    reader->dvbpsi_have_pat = 0;
+    reader->dvbpsi_have_pmt = 0;
+    reader->dvbpsi_have_sdt = 0;
+
+    /* tuner_fd */
+    reader->tuner_fd = -1;
+
+    reader->pat_packet_count = 0;
+    reader->pmt_packet_count = 0;
+    g_free(reader->pat_data);
+    g_free(reader->pmt_data);
+    reader->pat_data = NULL;
+    reader->pmt_data = NULL;
+
+    GList *tmp;
+    struct DVBReaderListener *listener;
+    for (tmp = reader->listeners; tmp; tmp = g_list_next(tmp)) {
+        listener = (struct DVBReaderListener *)tmp->data;
+        if (listener) {
+            listener->have_pat = 0;
+            listener->have_pmt = 0;
+        }
+    }
+}
+
+void dvb_reader_destroy(DVBReader *reader)
+{
+    if (!reader)
+        return;
+
+    dvb_reader_reset(reader);
 
     DVBRecorderEvent *quit_event = dvb_recorder_event_new(DVB_RECORDER_EVENT_STOP_THREAD, NULL, NULL);
     dvb_reader_push_event_next(reader, quit_event);
@@ -364,10 +424,27 @@ void dvb_reader_event_handle_tune_in(DVBReader *reader, DVBRecorderEventTuneIn *
     reader->tuner_fd = dvb_tuner_get_fd(reader->tuner);
     g_mutex_unlock(&reader->tuner_mutex);
 
+    fprintf(stderr, "[lib]: rc: %d, tuner fd: %d\n", rc, reader->tuner_fd);
 
     /* FIXME: notify callback about status change */
+    if (reader->tuner_fd < 0) {
+        dvb_recorder_event_send(DVB_RECORDER_EVENT_STREAM_STATUS_CHANGED,
+                reader->event_cb, reader->event_data,
+                "status", DVB_STREAM_STATUS_TUNE_FAILED,
+                NULL, NULL);
+        return;
+    }
 
     dvb_reader_start(reader);
+
+    dvb_recorder_event_send(DVB_RECORDER_EVENT_STREAM_STATUS_CHANGED,
+            reader->event_cb, reader->event_data,
+            "status", DVB_STREAM_STATUS_TUNED,
+            NULL, NULL);
+    dvb_recorder_event_send(DVB_RECORDER_EVENT_STREAM_STATUS_CHANGED,
+            reader->event_cb, reader->event_data,
+            "status", DVB_STREAM_STATUS_RUNNING,
+            NULL, NULL);
 }
 
 gpointer dvb_reader_event_thread_proc(DVBReader *reader)
@@ -423,12 +500,16 @@ gpointer dvb_reader_data_thread_proc(DVBReader *reader)
 
     uint8_t buffer[16384];
     ssize_t bytes_read;
-    struct pollfd pfd[2]; /* FIXME: control pipe */
+    struct pollfd pfd[2];
 
     pfd[0].fd = reader->control_pipe_stream[0];
     pfd[0].events = POLLIN;
 
     fprintf(stderr, "[lib] tuner fd: %d\n", reader->tuner_fd);
+    if (reader->tuner_fd < 0) {
+        /* send event tuning failed */
+        goto done;
+    }
     pfd[1].fd = reader->tuner_fd;
     pfd[1].events = POLLIN;
 
@@ -451,6 +532,7 @@ gpointer dvb_reader_data_thread_proc(DVBReader *reader)
         }
     }
 
+done:
     ts_reader_free(ts_reader);
 
     return NULL;

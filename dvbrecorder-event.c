@@ -103,6 +103,25 @@ void dvb_recorder_event_destroy(DVBRecorderEvent *event)
     g_free(event);
 }
 
+void dvb_recorder_event_send(DVBRecorderEventType type, DVBRecorderEventCallback cb, gpointer data, ...)
+{
+    if (!cb)
+        return;
+
+    DVBRecorderEvent *event = NULL;
+    va_list ap;
+    va_start(ap, data);
+    event = dvb_recorder_event_new_valist(type, ap);
+    va_end(ap);
+
+    if (!event)
+        return;
+
+    cb(event, data);
+
+    dvb_recorder_event_destroy(event);
+}
+
 void dvb_recorder_event_tuned_set_property(DVBRecorderEvent *event,
                                          const gchar *prop_name, const gpointer prop_value)
 {
@@ -110,7 +129,7 @@ void dvb_recorder_event_tuned_set_property(DVBRecorderEvent *event,
         return;
     DVBRecorderEventTuned *ev = (DVBRecorderEventTuned *)event;
 
-    if (g_strcmp0(prop_name, "fd")) {
+    if (g_strcmp0(prop_name, "fd") == 0) {
         ev->fd = GPOINTER_TO_INT(prop_value);
     }
     else {
@@ -125,7 +144,7 @@ void dvb_recorder_event_stream_status_changed_set_property(DVBRecorderEvent *eve
         return;
     DVBRecorderEventStreamStatusChanged *ev = (DVBRecorderEventStreamStatusChanged *)event;
 
-    if (g_strcmp0(prop_name, "status")) {
+    if (g_strcmp0(prop_name, "status") == 0) {
         ev->status = GPOINTER_TO_INT(prop_value);
     }
     else {
