@@ -140,8 +140,6 @@ void dvb_reader_reset(DVBReader *reader)
     if (!reader)
         return;
 
-    dvb_reader_stop(reader);
-
     dvb_si_descriptor_free((dvb_si_descriptor *)reader->service_info);
     reader->service_info = NULL;
 
@@ -156,7 +154,7 @@ void dvb_reader_reset(DVBReader *reader)
     if (reader->dvbpsi_handles[TS_TABLE_SDT] && reader->dvbpsi_handles[TS_TABLE_SDT]->p_decoder)
         dvbpsi_DetachDemux(reader->dvbpsi_handles[TS_TABLE_SDT]);
     if (reader->dvbpsi_handles[TS_TABLE_RST] && reader->dvbpsi_handles[TS_TABLE_RST]->p_decoder)
-        dvbpsi_pmt_detach(reader->dvbpsi_handles[TS_TABLE_RST]);
+        dvbpsi_rst_detach(reader->dvbpsi_handles[TS_TABLE_RST]);
 
     int i;
     for (i = 0; i < N_TS_TABLE_TYPES; ++i) {
@@ -202,7 +200,7 @@ void dvb_reader_destroy(DVBReader *reader)
     if (!reader)
         return;
 
-    dvb_reader_reset(reader);
+    dvb_reader_stop(reader);
 
     DVBRecorderEvent *quit_event = dvb_recorder_event_new(DVB_RECORDER_EVENT_STOP_THREAD, NULL, NULL);
     dvb_reader_push_event_next(reader, quit_event);
@@ -333,6 +331,7 @@ void dvb_reader_tune(DVBReader *reader,
     g_return_if_fail(reader != NULL);
 
     /* FIXME: stop running stream first */
+
     DVBRecorderEvent *event = dvb_recorder_event_new(DVB_RECORDER_EVENT_TUNE_IN,
                                                      "frequency", frequency,
                                                      "polarization", polarization,
@@ -365,8 +364,6 @@ void dvb_reader_stop(DVBReader *reader)
 
     if (reader->control_pipe_stream[1] >= 0) {
         write(reader->control_pipe_stream[1], "quit", 4);
-        close(reader->control_pipe_stream[0]);
-        close(reader->control_pipe_stream[1]);
     }
 
     if (reader->data_thread) {
@@ -374,8 +371,16 @@ void dvb_reader_stop(DVBReader *reader)
         reader->data_thread = NULL;
     }
 
-    reader->control_pipe_stream[0] = -1;
-    reader->control_pipe_stream[1] = -1;
+    if (reader->control_pipe_stream[1] >= 0) {
+        close(reader->control_pipe_stream[1]);
+        reader->control_pipe_stream[0] = -1;
+    }
+    if (reader->control_pipe_stream[0] >= 0) {
+        close(reader->control_pipe_stream[0]);
+        reader->control_pipe_stream[1] = -1;
+    }
+
+    dvb_reader_reset(reader);
 }
 
 void dvb_reader_push_event(DVBReader *reader, DVBRecorderEvent *event)
@@ -463,7 +468,7 @@ gpointer dvb_reader_event_thread_proc(DVBReader *reader)
     while (1) {
         event = dvb_reader_pop_event(reader);
 
-        fprintf(stderr, "event: %d\n", event->type);
+        fprintf(stderr, "[lib] reader_event_thread_proc event: %d\n", event->type);
 
         switch (event->type) {
             case DVB_RECORDER_EVENT_STOP_THREAD:
@@ -534,8 +539,12 @@ gpointer dvb_reader_data_thread_proc(DVBReader *reader)
                 }
                 ts_reader_push_buffer(ts_reader, buffer, bytes_read);
             }
-            else if (pfd[0].revents & POLLIN) {
+            if (pfd[0].revents & POLLIN || pfd[0].revents & POLLNVAL) {
                 fprintf(stderr, "Received data on control pipe. Stop thread.\n");
+                break;
+            }
+            if (pfd[1].revents & POLLNVAL || pfd[1].revents & POLLHUP || pfd[1].revents & POLLERR) {
+                fprintf(stderr, "Input closed\n");
                 break;
             }
         }
