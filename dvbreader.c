@@ -118,16 +118,21 @@ DVBReader *dvb_reader_new(DVBRecorderEventCallback cb, gpointer userdata)
     g_cond_init(&reader->event_cond);
     g_queue_init(&reader->event_queue);
 
-    dvb_reader_reset(reader);
-
     reader->control_pipe_stream[0] = -1;
     reader->control_pipe_stream[1] = -1;
 
+    dvb_reader_reset(reader);
+
     reader->tuner = dvb_tuner_new(0);
+    if (!reader->tuner)
+        goto err;
 
     reader->event_thread = g_thread_new("EventThread", (GThreadFunc)dvb_reader_event_thread_proc, reader);
 
     return reader;
+err:
+    dvb_reader_destroy(reader);
+    return NULL;
 }
 
 void dvb_reader_reset(DVBReader *reader)
@@ -202,8 +207,10 @@ void dvb_reader_destroy(DVBReader *reader)
     DVBRecorderEvent *quit_event = dvb_recorder_event_new(DVB_RECORDER_EVENT_STOP_THREAD, NULL, NULL);
     dvb_reader_push_event_next(reader, quit_event);
 
-    g_thread_join(reader->event_thread);
-    reader->event_thread = NULL;
+    if (reader->event_thread) {
+        g_thread_join(reader->event_thread);
+        reader->event_thread = NULL;
+    }
 
 
     g_queue_free_full(&reader->event_queue, (GDestroyNotify)dvb_recorder_event_destroy);
@@ -353,6 +360,8 @@ void dvb_reader_stop(DVBReader *reader)
     g_return_if_fail(reader != NULL);
 
     reader->status = DVB_STREAM_STATUS_STOPPED;
+    fprintf(stderr, "[lib] dvb_reader_stop: pipe_stream: %d/%d\n", reader->control_pipe_stream[0],
+        reader->control_pipe_stream[1]);
 
     if (reader->control_pipe_stream[1] >= 0) {
         write(reader->control_pipe_stream[1], "quit", 4);

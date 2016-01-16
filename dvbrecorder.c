@@ -51,12 +51,19 @@ DVBRecorder *dvb_recorder_new(DVBRecorderEventCallback cb, gpointer userdata)
     recorder->event_data = userdata;
 
     recorder->reader = dvb_reader_new(dvb_recorder_event_callback, recorder);
+    if (!recorder->reader)
+        goto err;
 
     return recorder;
+
+err:
+    dvb_recorder_destroy(recorder);
+    return NULL;
 }
 
 void dvb_recorder_destroy(DVBRecorder *recorder)
 {
+    fprintf(stderr, "dvb_recorder_destroy\n");
     if (!recorder)
         return;
     if (recorder->video_pipe[0] >= 0)
@@ -83,7 +90,7 @@ int dvb_recorder_enable_video_source(DVBRecorder *recorder, gboolean enable)
         if (pipe(recorder->video_pipe) != 0) {
             fprintf(stderr, "pipe failed: (%d) %s\n", errno, strerror(errno));
         }
-        fprintf(stderr, "video_pipe: %d/%d\n", recorder->video_pipe[0], recorder->video_pipe[1]);
+        fprintf(stderr, "video_pipe: %d/%d, reader: %p\n", recorder->video_pipe[0], recorder->video_pipe[1], recorder->reader);
         /* for decoding (gstreamer) pat and pmt are necessary */
         dvb_reader_set_listener(recorder->reader,
                 DVB_FILTER_VIDEO | DVB_FILTER_AUDIO | DVB_FILTER_TELETEXT |
@@ -94,6 +101,7 @@ int dvb_recorder_enable_video_source(DVBRecorder *recorder, gboolean enable)
         return recorder->video_pipe[0];
     }
     else {
+        fprintf(stderr, "[lib] enable_video_source: FALSE\n");
         dvb_reader_remove_listener(recorder->reader, recorder->video_pipe[1], NULL);
         close(recorder->video_pipe[0]);
         close(recorder->video_pipe[1]);
@@ -111,6 +119,8 @@ GList *dvb_recorder_get_channel_list(DVBRecorder *recorder)
 
 gboolean dvb_recorder_set_channel(DVBRecorder *recorder, guint64 channel_id)
 {
+    g_return_val_if_fail(recorder != NULL, FALSE);
+
     dvb_reader_tune(recorder->reader, 0, 0, 0, 0, 28721);
 
     return TRUE;
@@ -192,6 +202,7 @@ void dvb_recorder_record_stop(DVBRecorder *recorder)
     g_return_if_fail(recorder != NULL);
 
     dvb_reader_remove_listener(recorder->reader, -1, (DVBReaderListenerCallback)dvb_recorder_record_callback);
+    fprintf(stderr, "[lib] dvb_recorder_record_stop, record_fd: %d\n", recorder->record_fd);
     if (recorder->record_fd >= 0) {
         close(recorder->record_fd);
         recorder->record_fd = -1;

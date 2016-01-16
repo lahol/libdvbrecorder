@@ -411,6 +411,7 @@ DVBTuner *dvb_tuner_new(uint8_t adapter_num)
 void dvb_tuner_clean(DVBTuner *tuner)
 {
     if (tuner) {
+        fprintf(stderr, "[lib] dvb_tuner_clean tuner->fd: %d\n", tuner->fd);
         if (tuner->fd >= 0) {
             close(tuner->fd);
             tuner->fd = -1;
@@ -436,9 +437,12 @@ int dvb_tuner_tune(DVBTuner *tuner,
 {
     if (tuner == NULL)
         return -1;
+    fprintf(stderr, "[lib] dvb_tuner_tune tuner->fd: %d\n", tuner->fd);
     if (tuner->fd != -1)
         close(tuner->fd);
     tuner->fd = open("/tmp/ts-dummy.ts", O_CLOEXEC | O_RDONLY | O_NONBLOCK);
+
+    fprintf(stderr, "[tuner] tuner->fd: %d\n", tuner->fd);
 
     if (tuner->fd == -1)
         return -1;
