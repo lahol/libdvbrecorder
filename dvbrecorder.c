@@ -10,6 +10,8 @@
 #include "dvbreader.h"
 #include "events.h"
 #include "read-ts.h"
+#include "channels.h"
+#include "channel-db.h"
 
 struct _DVBRecorder {
     DVBRecorderEventCallback event_cb;
@@ -121,9 +123,20 @@ gboolean dvb_recorder_set_channel(DVBRecorder *recorder, guint64 channel_id)
 {
     g_return_val_if_fail(recorder != NULL, FALSE);
 
-    dvb_reader_tune(recorder->reader, 0, 0, 0, 0, 28721);
+    ChannelData *chdata = channel_db_get_channel(channel_id);
 
-    return TRUE;
+    if (chdata) {
+        dvb_reader_tune(recorder->reader,
+                        chdata->frequency * 1000, /* frequency */
+                        chdata->polarization == CHNL_POLARIZATION_HORIZONTAL ? 1 : 0,  /* polarization */
+                        0,                        /* sat number */
+                        chdata->srate * 1000,     /* symbol rate */
+                        28721);                   /* program number */
+        return TRUE;
+    }
+    else {
+        return FALSE;
+    }
 }
 
 void dvb_recorder_record_callback(const guint8 *packet, DVBReaderFilterType type, DVBRecorder *recorder)

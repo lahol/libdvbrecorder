@@ -59,6 +59,37 @@ void channel_data_free(ChannelData *data) {
     g_free(data);
 }
 
+void channel_data_parse_vdr_parameter(ChannelData *channel)
+{
+    gchar *ptr = channel->parameter;
+    if (ptr == NULL)
+        return;
+    while (*ptr != 0) {
+        switch (*ptr) {
+            case 'H':
+                channel->polarization = CHNL_POLARIZATION_HORIZONTAL;
+                ++ptr;
+                break;
+            case 'V':
+                channel->polarization = CHNL_POLARIZATION_VERTICAL;
+                ++ptr;
+                break;
+            case 'L':
+                channel->polarization = CHNL_POLARIZATION_LEFT;
+                ++ptr;
+                break;
+            case 'R':
+                channel->polarization = CHNL_POLARIZATION_RIGHT;
+                ++ptr;
+                break;
+            default:
+                ++ptr;
+                strtoul(ptr, &ptr, 10); /* read arguments */
+                break;
+        }
+    }
+}
+
 ChannelData *channel_data_parse_vdr(gchar *line)
 {
     /* http://www.vdr-wiki.de/wiki/index.php/Channels.conf */
@@ -83,6 +114,8 @@ ChannelData *channel_data_parse_vdr(gchar *line)
     data->nid = (guint32)strtol(tokens[10], NULL, 10);
     data->tid = (guint32)strtol(tokens[11], NULL, 10);
     data->rid = (guint32)strtol(tokens[12], NULL, 10);
+
+    channel_data_parse_vdr_parameter(data);
 
 out:
     g_strfreev(tokens);

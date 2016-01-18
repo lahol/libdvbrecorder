@@ -179,7 +179,7 @@ static int dvb_tuner_set_disecq(DVBTuner *tuner)
     };
 
     cmd.msg[3] = 0xf0 | ((tuner->sat_no << 2) & 0x0f)
-                      | ((tuner->polarization ? 0 : 1) << 1)
+                      | ((tuner->polarization ? 1 : 0) << 1)
                       | (tuner->tone ? 1 : 0);
 
     fprintf(stderr, "FE_SET_TONE\n");
@@ -188,7 +188,7 @@ static int dvb_tuner_set_disecq(DVBTuner *tuner)
 
     fprintf(stderr, "FE_SET_VOLTAGE\n");
     if (ioctl(tuner->frontend_fd, FE_SET_VOLTAGE,
-                tuner->polarization ? SEC_VOLTAGE_13 : SEC_VOLTAGE_18) < 0)
+                tuner->polarization ? SEC_VOLTAGE_18 : SEC_VOLTAGE_13) < 0)
         return -1;
 
     usleep(15000);

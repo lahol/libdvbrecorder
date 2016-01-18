@@ -6,11 +6,19 @@ typedef enum {
     CHNL_FLAG_DIRTY  = 1 << 0
 } ChannelFlag;
 
+typedef enum {
+    CHNL_POLARIZATION_HORIZONTAL,
+    CHNL_POLARIZATION_VERTICAL,
+    CHNL_POLARIZATION_LEFT,
+    CHNL_POLARIZATION_RIGHT
+} ChannelPolarization;
+
 typedef struct {
     guint32 id;
     gchar *name;           /* Channel name */
     guint32 frequency;     /* Frequency MHz for DVB-S*/
     gchar *parameter;      /* Parameter @see parse_vdr_param */
+    ChannelPolarization polarization; /* Polarization */
     gchar *signalsource;   /* Source, e.g. S19E2 */
     guint32 srate;         /* Symbolrate */
     gchar *vpid;           /* Video-PID */
