@@ -67,18 +67,22 @@ void channel_data_parse_vdr_parameter(ChannelData *channel)
     while (*ptr != 0) {
         switch (*ptr) {
             case 'H':
+            case 'h':
                 channel->polarization = CHNL_POLARIZATION_HORIZONTAL;
                 ++ptr;
                 break;
             case 'V':
+            case 'v':
                 channel->polarization = CHNL_POLARIZATION_VERTICAL;
                 ++ptr;
                 break;
             case 'L':
+            case 'l':
                 channel->polarization = CHNL_POLARIZATION_LEFT;
                 ++ptr;
                 break;
             case 'R':
+            case 'r':
                 channel->polarization = CHNL_POLARIZATION_RIGHT;
                 ++ptr;
                 break;

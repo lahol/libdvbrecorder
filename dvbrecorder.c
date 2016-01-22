@@ -23,6 +23,8 @@ struct _DVBRecorder {
 
     int video_pipe[2];
 
+    guint64 current_channel_id;
+
     int record_fd;
     gchar *record_filename;
     DVBRecordStatus record_status;
@@ -51,6 +53,10 @@ DVBRecorder *dvb_recorder_new(DVBRecorderEventCallback cb, gpointer userdata)
 
     recorder->event_cb = cb;
     recorder->event_data = userdata;
+
+    recorder->video_pipe[0] = -1;
+    recorder->video_pipe[1] = -1;
+    recorder->record_fd = -1;
 
     recorder->reader = dvb_reader_new(dvb_recorder_event_callback, recorder);
     if (!recorder->reader)
@@ -123,15 +129,22 @@ gboolean dvb_recorder_set_channel(DVBRecorder *recorder, guint64 channel_id)
 {
     g_return_val_if_fail(recorder != NULL, FALSE);
 
+    if (recorder->current_channel_id == channel_id)
+        return TRUE;
+
     ChannelData *chdata = channel_db_get_channel(channel_id);
 
     if (chdata) {
+        /* stop running recording first */
+        if (recorder->record_status == DVB_RECORD_STATUS_RECORDING)
+            dvb_recorder_record_stop(recorder);
+
         dvb_reader_tune(recorder->reader,
-                        chdata->frequency * 1000, /* frequency */
+                        chdata->frequency,        /* frequency */
                         chdata->polarization == CHNL_POLARIZATION_HORIZONTAL ? 1 : 0,  /* polarization */
                         0,                        /* sat number */
-                        chdata->srate * 1000,     /* symbol rate */
-                        28721);                   /* program number */
+                        chdata->srate,            /* symbol rate */
+                        chdata->sid);             /* program number */
         return TRUE;
     }
     else {

@@ -291,6 +291,13 @@ int dvb_tuner_tune(DVBTuner *tuner,
     /* close open file descriptors */
     dvb_tuner_clean(tuner);
 
+    while (frequency < 1000000) {
+        frequency *= 1000;
+    }
+    while (symbolrate < 1000000) {
+        symbolrate *= 1000;
+    }
+
     /* lnb switch frequency (hi band/lo band)*/
     if (frequency > 11700000) {
         tuner->frontend_parameters.frequency = frequency - 10600000; /* lnb frequency hi */
