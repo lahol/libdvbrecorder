@@ -331,6 +331,7 @@ void dvb_reader_tune(DVBReader *reader,
     g_return_if_fail(reader != NULL);
 
     /* FIXME: stop running stream first */
+    fprintf(stderr, "dvb_reader_tune: frequency: %" PRIu32 "\n", frequency);
 
     DVBRecorderEvent *event = dvb_recorder_event_new(DVB_RECORDER_EVENT_TUNE_IN,
                                                      "frequency", frequency,
@@ -425,6 +426,7 @@ void dvb_reader_event_handle_tune_in(DVBReader *reader, DVBRecorderEventTuneIn *
     int rc;
     g_mutex_lock(&reader->tuner_mutex);
     /* FIXME: make this cancellable */
+    fprintf(stderr, "[lib] dvb_reader_event_handle_tune_in frequency: %" PRIu32 "\n", event->frequency);
     rc = dvb_tuner_tune(reader->tuner, event->frequency, event->polarization, event->sat_no,
                                        event->symbol_rate, NULL, 0);
     if (rc == 0) {
