@@ -80,17 +80,17 @@ struct _DVBTuner {
     struct PIDFilterList *pid_filters;
 };
 
-gboolean dvb_tuner_setup_frontend(DVBTuner *tuner)
+int dvb_tuner_setup_frontend(DVBTuner *tuner)
 {
     char *frontend_dev = NULL;
-    if (_asprintf(&frontend_dev, "/dev/dvb/adapter%u/frontend0", adapter_num) < 0) {
+    if (_asprintf(&frontend_dev, "/dev/dvb/adapter%u/frontend0", tuner->adapter_num) < 0) {
         fprintf(stderr, "Failed to get frontend dev string.\n");
-        return FALSE;
+        return -1;
     }
     if ((tuner->frontend_fd = open(frontend_dev, O_CLOEXEC | O_RDWR)) < 0) {
         fprintf(stderr, "Failed to open frontend device %s.\n", frontend_dev);
         free(frontend_dev);
-        return FALSE;
+        return -1;
     }
     free(frontend_dev);
 
@@ -98,17 +98,17 @@ gboolean dvb_tuner_setup_frontend(DVBTuner *tuner)
 
     if ((ioctl(tuner->frontend_fd, FE_GET_INFO, &tuner->frontend_info)) < 0) {
         fprintf(stderr, "Failed to get frontend info.\n");
-        return FALSE;
+        return -1;
     }
 
     if (tuner->frontend_info.type != FE_QPSK) {
-        fprintf(stderr, "Adapter %u does not support DVB-S(2).\n", adapter_num);
-        return FALSE;
+        fprintf(stderr, "Adapter %u does not support DVB-S(2).\n", tuner->adapter_num);
+        return -1;
     }
 
     fcntl(tuner->frontend_fd, F_SETFL, O_NONBLOCK);
 
-    return TRUE;
+    return 0;
 }
 
 DVBTuner *dvb_tuner_new(uint8_t adapter_num)
@@ -125,11 +125,6 @@ DVBTuner *dvb_tuner_new(uint8_t adapter_num)
     tuner->adapter_num = adapter_num;
 
     return tuner;
-
-err:
-    dvb_tuner_free(tuner);
-
-    return NULL;
 }
 
 void dvb_tuner_clean(DVBTuner *tuner)
@@ -313,7 +308,7 @@ int dvb_tuner_tune(DVBTuner *tuner,
     /* close open file descriptors */
     dvb_tuner_clean(tuner);
 
-    if (!dvb_tuner_setup_frontend(tuner))
+    if (dvb_tuner_setup_frontend(tuner) < 0)
         return -1;
 
     fprintf(stderr, "[lib] dvb_tuner_tune: frequency/symbolrate: %" PRIu32 "/%" PRIu32 "\n", frequency, symbolrate);
