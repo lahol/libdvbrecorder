@@ -6,6 +6,7 @@
 #include <string.h>
 #include <stdarg.h>
 #include <errno.h>
+#include <inttypes.h>
 
 #include <unistd.h>
 #include <fcntl.h>
@@ -183,33 +184,43 @@ static int dvb_tuner_set_disecq(DVBTuner *tuner)
                       | (tuner->tone ? 1 : 0);
 
     fprintf(stderr, "FE_SET_TONE\n");
-    if (ioctl(tuner->frontend_fd, FE_SET_TONE, SEC_TONE_OFF) < 0)
+    if (ioctl(tuner->frontend_fd, FE_SET_TONE, SEC_TONE_OFF) < 0) {
+        fprintf(stderr, "FE_SET_TONE failed: (%d) %s\n", errno, strerror(errno));
         return -1;
+    }
 
     fprintf(stderr, "FE_SET_VOLTAGE\n");
     if (ioctl(tuner->frontend_fd, FE_SET_VOLTAGE,
-                tuner->polarization ? SEC_VOLTAGE_18 : SEC_VOLTAGE_13) < 0)
+                tuner->polarization ? SEC_VOLTAGE_18 : SEC_VOLTAGE_13) < 0) {
+        fprintf(stderr, "FE_SET_VOLTAGE failed: (%d) %s\n", errno, strerror(errno));
         return -1;
+    }
 
     usleep(15000);
 
     fprintf(stderr, "FE_DISEQC_SEND_MASTER_CMD\n");
-    if (ioctl(tuner->frontend_fd, FE_DISEQC_SEND_MASTER_CMD, &cmd) < 0)
+    if (ioctl(tuner->frontend_fd, FE_DISEQC_SEND_MASTER_CMD, &cmd) < 0) {
+        fprintf(stderr, "FE_DISEQC_SEND_MASTER_CMD failed: (%d) %s\n", errno, strerror(errno));
         return -1;
+    }
 
     usleep(15000);
 
     fprintf(stderr, "FE_DISEQC_SEND_BURST\n");
     if (ioctl(tuner->frontend_fd, FE_DISEQC_SEND_BURST,
-                (tuner->sat_no >> 2) & 0x01 ? SEC_MINI_B : SEC_MINI_A) < 0)
+                (tuner->sat_no >> 2) & 0x01 ? SEC_MINI_B : SEC_MINI_A) < 0) {
+        fprintf(stderr, "FE_DISEQC_SEND_BURST failed: (%d) %s\n", errno, strerror(errno));
         return -1;
+    }
 
     usleep(15000);
 
     fprintf(stderr, "FE_SET_TONE\n");
     if (ioctl(tuner->frontend_fd, FE_SET_TONE,
-                tuner->tone ? SEC_TONE_ON : SEC_TONE_OFF) < 0)
+                tuner->tone ? SEC_TONE_ON : SEC_TONE_OFF) < 0) {
+        fprintf(stderr, "FE_SET_TONE failed: (%d) %s\n", errno, strerror(errno));
         return -1;
+    }
 
     fprintf(stderr, "set_disecq successful\n");
     return 0;
@@ -227,6 +238,7 @@ static int dvb_tuner_do_tune(DVBTuner *tuner)
 
     fprintf(stderr, "FE_SET_FRONTEND\n");
     if (ioctl(tuner->frontend_fd, FE_SET_FRONTEND, &tuner->frontend_parameters) < 0) {
+        fprintf(stderr, "FE_SET_FRONTEND failed: (%d) %s\n", errno, strerror(errno));
         return -1;
     }
 
@@ -253,6 +265,7 @@ static int dvb_tuner_do_tune(DVBTuner *tuner)
     do {
         status = 0;
         if (ioctl(tuner->frontend_fd, FE_READ_STATUS, &status) < 0) {
+            fprintf(stderr, "FE_READ_STATUS failed: (%d) %s\n", errno, strerror(errno));
             return -1;
         }
 
@@ -298,6 +311,8 @@ int dvb_tuner_tune(DVBTuner *tuner,
         symbolrate *= 1000;
     }
 
+    fprintf(stderr, "[lib] dvb_tuner_tune: frequency/sympolrate: %" PRIu32 "/%" PRIu32 "\n", frequency, symbolrate);
+
     /* lnb switch frequency (hi band/lo band)*/
     if (frequency > 11700000) {
         tuner->frontend_parameters.frequency = frequency - 10600000; /* lnb frequency hi */
@@ -341,6 +356,7 @@ int dvb_tuner_tune(DVBTuner *tuner,
     free(dvr_device);
 
     if (tuner->dvr_fd < 0) {
+        fprintf(stderr, "failed to open dvr_device: (%d) %s\n", errno, strerror(errno));
         return -1;
     }
  
