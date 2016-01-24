@@ -1,2 +1,4 @@
+libglib2.0-dev
+libbitstream-dev
 libdvbpsi-dev
-
+libsqlite3-dev
