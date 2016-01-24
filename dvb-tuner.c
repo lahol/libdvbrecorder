@@ -99,11 +99,13 @@ DVBTuner *dvb_tuner_new(uint8_t adapter_num)
         goto err;
     }
     if ((tuner->frontend_fd = open(frontend_dev, O_CLOEXEC | O_RDWR)) < 0) {
-        fprintf(stderr, "Failed to open frontend device.\n");
+        fprintf(stderr, "Failed to open frontend device %s.\n", frontend_dev);
         free(frontend_dev);
         goto err;
     }
     free(frontend_dev);
+
+    fprintf(stderr, "[lib] dvb_tuner_new: frontend_fd: %d\n", tuner->frontend_fd);
 
     if ((ioctl(tuner->frontend_fd, FE_GET_INFO, &tuner->frontend_info)) < 0) {
         fprintf(stderr, "Failed to get frontend info.\n");
@@ -183,6 +185,7 @@ static int dvb_tuner_set_disecq(DVBTuner *tuner)
                       | ((tuner->polarization ? 1 : 0) << 1)
                       | (tuner->tone ? 1 : 0);
 
+    fprintf(stderr, "[lib] dvb_tuner_set_disecq frontend_fd: %d\n", tuner->frontend_fd);
     fprintf(stderr, "FE_SET_TONE\n");
     if (ioctl(tuner->frontend_fd, FE_SET_TONE, SEC_TONE_OFF) < 0) {
         fprintf(stderr, "FE_SET_TONE failed: (%d) %s\n", errno, strerror(errno));
@@ -303,6 +306,8 @@ int dvb_tuner_tune(DVBTuner *tuner,
 
     /* close open file descriptors */
     dvb_tuner_clean(tuner);
+
+    fprintf(stderr, "[lib] dvb_tuner_tune: frequency/sympolrate: %" PRIu32 "/%" PRIu32 "\n", frequency, symbolrate);
 
     while (frequency < 1000000) {
         frequency *= 1000;
