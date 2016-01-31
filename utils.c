@@ -75,7 +75,7 @@ gboolean util_convert_string_control_codes(gchar **buf)
     return TRUE;
 }
 
-gchar *util_convert_string(uint8_t *str, uint8_t length)
+gchar *util_convert_string(guchar *str, guint8 length)
 {
     if (length == 0)
         return NULL;
@@ -105,9 +105,9 @@ gchar *util_convert_string(uint8_t *str, uint8_t length)
     return buf;
 }
 
-uint32_t util_convert_bcd_time(uint32_t bcd, uint8_t *hours, uint8_t *minutes, uint8_t *seconds)
+guint32 util_convert_bcd_time(guint32 bcd, guint8 *hours, guint8 *minutes, guint8 *seconds)
 {
-    uint8_t h, m, s;
+    guint8 h, m, s;
     h = 10 * ((bcd >> 20) & 0x0f) + ((bcd >> 16) & 0x0f);
     m = 10 * ((bcd >> 12) & 0x0f) + ((bcd >> 8) & 0x0f);
     s = 10 * ((bcd >> 4) & 0x0f) + (bcd & 0x0f);
@@ -122,7 +122,7 @@ uint32_t util_convert_bcd_time(uint32_t bcd, uint8_t *hours, uint8_t *minutes, u
     return 3600 * h + 60 * m + s;
 }
 
-time_t util_convert_datetime(uint64_t datetime, struct tm **tm)
+time_t util_convert_datetime(guint64 datetime, struct tm **tm)
 {
     time_t tval = ((datetime >> 24) - 40587) * 86400
                  + util_convert_bcd_time(datetime & 0xffffff, NULL, NULL, NULL);
