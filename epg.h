@@ -40,3 +40,6 @@ typedef struct {
     GList *short_descriptions;     /* list of multiple (language-specific?) descriptions */
     GList *extended_descriptions;  /* list of multiple (language-specific?) descriptions, descriptors concatenated */
 } EPGEvent;
+
+void epg_event_free(EPGEvent *event);
+gint epg_event_compare_time(EPGEvent *a, EPGEvent *b);

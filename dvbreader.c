@@ -23,6 +23,8 @@
 #include <dvbpsi/rst.h>
 
 #include "descriptors.h"
+#include "epg.h"
+#include "epg-internal.h"
 
 struct _DVBReader {
     DVBRecorderEventCallback event_cb;
@@ -65,6 +67,13 @@ struct _DVBReader {
     uint8_t *pat_data;
     uint8_t pmt_packet_count;
     uint8_t *pmt_data;
+
+    GList *eit_tables;     /* each entry contains a list of events belonging to the same table*/
+};
+
+struct EITable {
+    guint8 table_id;
+    GList *events;
 };
 
 struct DVBReaderListener {
@@ -106,6 +115,26 @@ void dvb_reader_dvbpsi_demux_new_subtable(dvbpsi_t *handle, uint8_t table_id, ui
 gboolean dvb_reader_write_packet(DVBReader *reader, const uint8_t *packet);
 gboolean dvb_reader_handle_packet(const uint8_t *packet, void *userdata);
 
+gint dvb_reader_compare_event_tables_id(struct EITable *a, struct EITable *b)
+{
+    if (a == NULL)
+        return 1;
+    if (b == NULL)
+        return -1;
+    if (a->table_id < b->table_id)
+        return -1;
+    else if (a->table_id > b->table_id)
+        return 1;
+    return 0;
+}
+
+gint dvb_reader_find_table_id(struct EITable *table, guint8 table_id)
+{
+    if (table && table->table_id == table_id)
+        return 0;
+    return 1;
+}
+
 DVBReader *dvb_reader_new(DVBRecorderEventCallback cb, gpointer userdata)
 {
     DVBReader *reader = g_malloc0(sizeof(DVBReader));
@@ -134,6 +163,16 @@ DVBReader *dvb_reader_new(DVBRecorderEventCallback cb, gpointer userdata)
 err:
     dvb_reader_destroy(reader);
     return NULL;
+}
+
+void dvb_reader_free_eit_tables(GList *eit_tables)
+{
+    GList *tmp;
+    for (tmp = eit_tables; tmp; tmp = g_list_next(tmp)) {
+        g_list_free_full(((struct EITable *)tmp->data)->events, (GDestroyNotify)epg_event_free);
+    }
+
+    g_list_free_full(eit_tables, g_free);
 }
 
 void dvb_reader_reset(DVBReader *reader)
@@ -194,6 +233,9 @@ void dvb_reader_reset(DVBReader *reader)
             listener->have_pmt = 0;
         }
     }
+
+    dvb_reader_free_eit_tables(reader->eit_tables);
+    reader->eit_tables = NULL;
 }
 
 void dvb_reader_destroy(DVBReader *reader)
@@ -383,6 +425,22 @@ void dvb_reader_stop(DVBReader *reader)
     }
 
     dvb_reader_reset(reader);
+}
+
+GList *dvb_reader_get_events(DVBReader *reader)
+{
+    g_return_val_if_fail(reader != NULL, NULL);
+
+    GList *complete = NULL;
+    GList *tmp_table, *tmp;
+
+    for (tmp_table = reader->eit_tables; tmp_table; tmp_table = g_list_next(tmp_table)) {
+        for (tmp = ((struct EITable *)tmp_table->data)->events; tmp; tmp = g_list_next(tmp)) {
+            complete = g_list_prepend(complete, tmp->data);
+        }
+    }
+
+    return g_list_sort(complete, (GCompareFunc)epg_event_compare_time);
 }
 
 void dvb_reader_push_event(DVBReader *reader, DVBRecorderEvent *event)
@@ -678,6 +736,25 @@ void dvb_reader_dvbpsi_pmt_cb(DVBReader *reader, dvbpsi_pmt_t *pmt)
 void dvb_reader_dvbpsi_eit_cb(DVBReader *reader, dvbpsi_eit_t *eit)
 {
     fprintf(stderr, "eit_cb\n");
+    /* get table id, find in list, or create new, insert */
+    struct EITable *table = (struct EITable *)g_list_find_custom(reader->eit_tables, GUINT_TO_POINTER(eit->i_table_id),
+                                                                 (GCompareFunc)dvb_reader_find_table_id);
+    if (table == NULL) {
+        fprintf(stderr, "eit add table: 0x%02x\n", eit->i_table_id);
+        table = g_malloc0(sizeof(struct EITable));
+        table->table_id = eit->i_table_id;
+        reader->eit_tables = g_list_insert_sorted(reader->eit_tables, table,
+                                                  (GCompareFunc)dvb_reader_compare_event_tables_id);
+    }
+
+    g_list_free_full(table->events, (GDestroyNotify)epg_event_free);
+
+    table->events = epg_read_table(eit);
+
+    dvb_recorder_event_send(DVB_RECORDER_EVENT_EIT_CHANGED,
+            reader->event_cb, reader->event_data,
+            "table-id", GUINT_TO_POINTER(eit->i_table_id),
+            NULL, NULL);
 
     dvbpsi_eit_delete(eit);
 }

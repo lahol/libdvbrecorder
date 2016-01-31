@@ -45,3 +45,5 @@ void dvb_reader_tune(DVBReader *reader,
 
 void dvb_reader_start(DVBReader *reader);
 void dvb_reader_stop(DVBReader *reader);
+
+GList *dvb_reader_get_events(DVBReader *reader); /* new list containing reference of all events */

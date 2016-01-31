@@ -4,6 +4,7 @@
 #include <dvbpsi/descriptor.h>
 #include "descriptors.h"
 #include "utils.h"
+#include <stdio.h>
 
 /* 0x48: service_descriptor */
 dvb_si_descriptor *dvb_si_descriptor_decode_service(dvbpsi_descriptor_t *desc)
@@ -39,7 +40,7 @@ dvb_si_descriptor *dvb_si_descriptor_decode_short_event(dvbpsi_descriptor_t *des
     dvb_si_descriptor_short_event *d = g_malloc0(sizeof(dvb_si_descriptor_short_event));
     ((dvb_si_descriptor *)d)->tag = dvb_si_tag_short_event_descriptor;
 
-    dvb_si_descriptor_copy_iso639_lang(d->language, &desc->p_data[0]);
+    dvb_si_descriptor_copy_iso639_lang(d->language, (gchar *)&desc->p_data[0]);
     o = 4;
     l = desc->p_data[3];
     d->description = util_convert_string(&desc->p_data[o], l);
@@ -48,7 +49,7 @@ dvb_si_descriptor *dvb_si_descriptor_decode_short_event(dvbpsi_descriptor_t *des
     ++o;
     d->text = util_convert_string(&desc->p_data[o], l);
 
-    return d;
+    return (dvb_si_descriptor *)d;
 }
 
 void dvb_si_descriptor_free_short_event(dvb_si_descriptor *desc)
@@ -63,17 +64,16 @@ void dvb_si_descriptor_free_short_event(dvb_si_descriptor *desc)
 /* 0x4e: extended_event_descriptor */
 dvb_si_descriptor *dvb_si_descriptor_decode_extended_event(dvbpsi_descriptor_t *desc)
 {
-    int o, l;
+    int l;
     dvb_si_descriptor_extended_event *d = g_malloc0(sizeof(dvb_si_descriptor_extended_event));
     ((dvb_si_descriptor *)d)->tag = dvb_si_tag_extended_event_descriptor;
 
     d->descriptor_number = desc->p_data[0] >> 4;
     d->descriptor_last_number = desc->p_data[0] & 0x0f;
 
-    dvb_si_descriptor_copy_iso639_lang(d->language, &desc->p_data[1]);
+    dvb_si_descriptor_copy_iso639_lang(d->language, (gchar *)&desc->p_data[1]);
     guint8 i_len = desc->p_data[4];
     guint8 *p;
-    o = 5;
 
     dvb_si_descriptor_extended_event_item *item;
 
@@ -95,7 +95,7 @@ dvb_si_descriptor *dvb_si_descriptor_decode_extended_event(dvbpsi_descriptor_t *
     l = desc->p_data[5 + i_len];
     d->text = util_convert_string(&desc->p_data[6 + i_len], l);
 
-    return d;
+    return (dvb_si_descriptor *)d;
 }
 
 void dvb_si_descriptor_free_extended_event_item(dvb_si_descriptor_extended_event_item *item)
@@ -131,7 +131,7 @@ void dvb_si_descriptor_free(dvb_si_descriptor *desc)
 {
     if (desc == NULL)
         return;
-#define CASE(t) case dvb_si_tag_ ## t ## _descriptor: dvb_si_descriptor_free_ ## t ( desc )
+#define CASE(t) case dvb_si_tag_ ## t ## _descriptor: dvb_si_descriptor_free_ ## t ( desc ); break
     switch (desc->tag) {
         CASE(service);
         CASE(short_event);

@@ -51,7 +51,7 @@ typedef struct {
 dvb_si_descriptor *dvb_si_descriptor_decode(dvbpsi_descriptor_t *desc);
 void dvb_si_descriptor_free(dvb_si_descriptor *desc);
 
-inline void dvb_si_descriptor_copy_iso639_lang(gchar *dst, gchar *src) {
+static inline void dvb_si_descriptor_copy_iso639_lang(gchar *dst, gchar *src) {
     dst[0] = src[0];
     dst[1] = src[1];
     dst[2] = src[2];

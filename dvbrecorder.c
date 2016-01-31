@@ -42,6 +42,9 @@ void dvb_recorder_event_callback(DVBRecorderEvent *event, gpointer userdata)
         case DVB_RECORDER_EVENT_STREAM_STATUS_CHANGED:
             recorder->event_cb(event, recorder->event_data);
             break;
+        case DVB_RECORDER_EVENT_EIT_CHANGED:
+            recorder->event_cb(event, recorder->event_data);
+            break;
         default:
             break;
     }
@@ -257,4 +260,11 @@ void dvb_recorder_query_record_status(DVBRecorder *recorder, DVBRecorderRecordSt
         end = recorder->record_end;
 
     status->elapsed_time = difftime(end, recorder->record_start);
+}
+
+GList *dvb_recorder_get_epg(DVBRecorder *recorder)
+{
+    g_return_val_if_fail(recorder != NULL, NULL);
+
+    return dvb_reader_get_events(recorder->reader);
 }

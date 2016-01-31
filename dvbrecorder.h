@@ -33,6 +33,8 @@ gboolean dvb_recorder_record_start(DVBRecorder *recorder, const gchar *filename)
 void dvb_recorder_record_stop(DVBRecorder *recorder);
 void dvb_recorder_query_record_status(DVBRecorder *recorder, DVBRecorderRecordStatus *status);
 
+GList *dvb_recorder_get_epg(DVBRecorder *recorder);
+
 DVBRecorderEvent *dvb_recorder_event_new(DVBRecorderEventType type, ...);
 DVBRecorderEvent *dvb_recorder_event_new_valist(DVBRecorderEventType type, va_list ap);
 
