@@ -51,76 +51,76 @@ void epg_event_read_descriptors(EPGEvent *event, dvbpsi_descriptor_t *desc)
     EPGExtendedEventItem *item;
 
     for ( ; desc; desc = desc->p_next) {
-        if ((d = dvb_si_descriptor_decode(desc)) != NULL) {
-            switch (d->tag) {
-                case dvb_si_tag_short_event_descriptor:
-                    {
-                        se_d = (dvb_si_descriptor_short_event *)d;
-                        se = g_malloc0(sizeof(EPGShortEvent));
-                        dvb_si_descriptor_copy_iso639_lang(se->language, se_d->language);
-                        /* steal pointers */
-                        se->description = se_d->description;
-                        se->text = se_d->text;
-                        se_d->description = NULL;
-                        se_d->text = NULL;
+        if ((d = dvb_si_descriptor_decode(desc)) == NULL)
+            continue;
+        switch (d->tag) {
+            case dvb_si_tag_short_event_descriptor:
+                {
+                    se_d = (dvb_si_descriptor_short_event *)d;
+                    se = g_malloc0(sizeof(EPGShortEvent));
+                    dvb_si_descriptor_copy_iso639_lang(se->language, se_d->language);
+                    /* steal pointers */
+                    se->description = se_d->description;
+                    se->text = se_d->text;
+                    se_d->description = NULL;
+                    se_d->text = NULL;
 
-                        event->short_descriptions = g_list_prepend(event->short_descriptions, se);
-                        se = NULL;
+                    event->short_descriptions = g_list_prepend(event->short_descriptions, se);
+                    se = NULL;
+                }
+                break;
+            case dvb_si_tag_extended_event_descriptor:
+                {
+                    /* collect descriptors */
+                    /* ee “global”, GString for collecting text
+                     * if number == 0 -> new GString
+                     * if number == last_number -> write to list 
+                     * (check first if all are read and in the right order?) */
+
+                    ee_d = (dvb_si_descriptor_extended_event *)d;
+                    if (ee_d->descriptor_number == 0) {
+                        if (G_UNLIKELY(collect_ee_text != NULL || ee != NULL)) {
+                            fprintf(stderr, "Extended event descriptor discontinuity.\n");
+                            g_string_free(collect_ee_text, TRUE);
+                            epg_extended_event_free(ee);
+                        }
+                        ee = g_malloc0(sizeof(EPGExtendedEvent));
+                        collect_ee_text = g_string_new(NULL);
+                        dvb_si_descriptor_copy_iso639_lang(ee->language, ee_d->language);
                     }
-                    break;
-                case dvb_si_tag_extended_event_descriptor:
-                    {
-                        /* collect descriptors */
-                        /* ee “global”, GString for collecting text
-                         * if number == 0 -> new GString
-                         * if number == last_number -> write to list 
-                         * (check first if all are read and in the right order?) */
 
-                        ee_d = (dvb_si_descriptor_extended_event *)d;
-                        if (ee_d->descriptor_number == 0) {
-                            if (G_UNLIKELY(collect_ee_text != NULL || ee != NULL)) {
-                                fprintf(stderr, "Extended event descriptor discontinuity.\n");
-                                g_string_free(collect_ee_text, TRUE);
-                                epg_extended_event_free(ee);
-                            }
-                            ee = g_malloc0(sizeof(EPGExtendedEvent));
-                            collect_ee_text = g_string_new(NULL);
-                            dvb_si_descriptor_copy_iso639_lang(ee->language, ee_d->language);
-                        }
+                    if (G_UNLIKELY(collect_ee_text == NULL || ee == NULL)) {
+                        fprintf(stderr, "Extended event descriptor not started.\n");
+                        break;
+                    }
+                    else {
+                        g_string_append(collect_ee_text, ee_d->text);
+                        for (tmp = ee_d->items; tmp; tmp = g_list_next(tmp)) {
+                            item = g_malloc(sizeof(EPGExtendedEventItem));
 
-                        if (G_UNLIKELY(collect_ee_text == NULL || ee == NULL)) {
-                            fprintf(stderr, "Extended event descriptor not started.\n");
-                            break;
-                        }
-                        else {
-                            g_string_append(collect_ee_text, ee_d->text);
-                            for (tmp = ee_d->items; tmp; tmp = g_list_next(tmp)) {
-                                item = g_malloc(sizeof(EPGExtendedEventItem));
+                            item->description = ((dvb_si_descriptor_extended_event_item *)tmp->data)->description;
+                            item->content = ((dvb_si_descriptor_extended_event_item *)tmp->data)->content;
+                            ((dvb_si_descriptor_extended_event_item *)tmp->data)->description = NULL;
+                            ((dvb_si_descriptor_extended_event_item *)tmp->data)->content = NULL;
 
-                                item->description = ((dvb_si_descriptor_extended_event_item *)tmp->data)->description;
-                                item->content = ((dvb_si_descriptor_extended_event_item *)tmp->data)->content;
-                                ((dvb_si_descriptor_extended_event_item *)tmp->data)->description = NULL;
-                                ((dvb_si_descriptor_extended_event_item *)tmp->data)->content = NULL;
-
-                                ee->description_items = g_list_prepend(ee->description_items, item);
-                            }
-                        }
-
-                        if (ee_d->descriptor_number == ee_d->descriptor_last_number) {
-                            ee->text = g_string_free(collect_ee_text, FALSE);
-                            ee->description_items = g_list_reverse(ee->description_items);
-
-                            event->extended_descriptions = g_list_prepend(event->extended_descriptions, ee);
-                            ee = NULL;
-                            collect_ee_text = NULL;
+                            ee->description_items = g_list_prepend(ee->description_items, item);
                         }
                     }
-                    break;
-                default:
-                    break;
-            }
-            dvb_si_descriptor_free(d);
+
+                    if (ee_d->descriptor_number == ee_d->descriptor_last_number) {
+                        ee->text = g_string_free(collect_ee_text, FALSE);
+                        ee->description_items = g_list_reverse(ee->description_items);
+
+                        event->extended_descriptions = g_list_prepend(event->extended_descriptions, ee);
+                        ee = NULL;
+                        collect_ee_text = NULL;
+                    }
+                }
+                break;
+            default:
+                break;
         }
+        dvb_si_descriptor_free(d);
     }
     
     event->short_descriptions = g_list_reverse(event->short_descriptions);
