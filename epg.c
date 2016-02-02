@@ -186,3 +186,51 @@ gint epg_event_compare_time(EPGEvent *a, EPGEvent *b)
         return 1;
     return 0;
 }
+
+EPGShortEvent *epg_short_event_dup(EPGShortEvent *event)
+{
+    if (event == NULL)
+        return NULL;
+    EPGShortEvent *dup = g_malloc(sizeof(EPGShortEvent));
+    *dup = *event;
+    dup->description = g_strdup(event->description);
+    dup->text = g_strdup(event->text);
+
+    return dup;
+}
+
+EPGExtendedEventItem *epg_extended_event_item_dup(EPGExtendedEventItem *item)
+{
+    if (item == NULL)
+        return NULL;
+    EPGExtendedEventItem *dup = g_malloc(sizeof(EPGExtendedEventItem));
+    dup->description = g_strdup(item->description);
+    dup->content = g_strdup(item->content);
+
+    return dup;
+}
+
+EPGExtendedEvent *epg_extended_event_dup(EPGExtendedEvent *event)
+{
+    if (event == NULL)
+        return NULL;
+    EPGExtendedEvent *dup = g_malloc(sizeof(EPGExtendedEvent));
+    *dup = *event;
+    dup->description_items = util_dup_list_deep(event->description_items, (UtilDataDupFunc)epg_extended_event_item_dup);
+    dup->text = g_strdup(event->text);
+
+    return dup;
+}
+
+EPGEvent *epg_event_dup(EPGEvent *event)
+{
+    if (event == NULL)
+        return NULL;
+    EPGEvent *dup = g_malloc0(sizeof(EPGEvent));
+    *dup = *event;
+
+    dup->short_descriptions = util_dup_list_deep(event->short_descriptions, (UtilDataDupFunc)epg_short_event_dup);
+    dup->extended_descriptions = util_dup_list_deep(event->extended_descriptions, (UtilDataDupFunc)epg_extended_event_dup);
+
+    return dup;
+}

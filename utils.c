@@ -133,3 +133,12 @@ time_t util_convert_datetime(guint64 datetime, struct tm **tm)
     return tval;
 }
 
+GList *util_dup_list_deep(GList *list, UtilDataDupFunc datadup)
+{
+    GList *dup = NULL;
+    for ( ; list; list = g_list_next(list)) {
+        dup = g_list_prepend(dup, datadup ? datadup(list->data) : list->data);
+    }
+
+    return g_list_reverse(dup);
+}

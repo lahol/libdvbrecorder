@@ -43,3 +43,5 @@ typedef struct {
 
 void epg_event_free(EPGEvent *event);
 gint epg_event_compare_time(EPGEvent *a, EPGEvent *b);
+
+EPGEvent *epg_event_dup(EPGEvent *event);
