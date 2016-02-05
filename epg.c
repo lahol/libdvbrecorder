@@ -226,7 +226,7 @@ EPGEvent *epg_event_dup(EPGEvent *event)
 {
     if (event == NULL)
         return NULL;
-    EPGEvent *dup = g_malloc0(sizeof(EPGEvent));
+    EPGEvent *dup = g_malloc(sizeof(EPGEvent));
     *dup = *event;
 
     dup->short_descriptions = util_dup_list_deep(event->short_descriptions, (UtilDataDupFunc)epg_short_event_dup);

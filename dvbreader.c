@@ -411,6 +411,7 @@ void dvb_reader_stop(DVBReader *reader)
     }
 
     if (reader->data_thread) {
+        /* FIXME: write quit here; lock data_thread before setting to NULL in proc */
         g_thread_join(reader->data_thread);
         reader->data_thread = NULL;
     }
@@ -613,6 +614,8 @@ gpointer dvb_reader_data_thread_proc(DVBReader *reader)
 
 done:
     ts_reader_free(ts_reader);
+
+    reader->data_thread = NULL;
 
     return NULL;
 }
