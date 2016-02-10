@@ -95,8 +95,10 @@ gchar *util_convert_string(guchar *str, guint8 length)
             from = "LATIN1";
     }
 
-    if (str[0] <= 0x1f)
+    if (str[0] <= 0x1f) {
         ++str;
+        --length;
+    }
 
     gsize bytes_written;
     gchar *buf = g_convert((gchar *)str, length, "UTF-8", from, NULL, &bytes_written, NULL);

@@ -6,6 +6,17 @@
 #include "utils.h"
 #include <stdio.h>
 
+void dump_descriptor(dvbpsi_descriptor_t *desc)
+{
+    uint8_t i;
+    for (i = 0; i < desc->i_length; ++i) {
+        fprintf(stderr, "%02x ", desc->p_data[i] & 0xff);
+        if (i % 16 == 15)
+            fprintf(stderr, "\n");
+    }
+    fprintf(stderr, "\n");
+}
+
 /* 0x48: service_descriptor */
 dvb_si_descriptor *dvb_si_descriptor_decode_service(dvbpsi_descriptor_t *desc)
 {
@@ -48,6 +59,9 @@ dvb_si_descriptor *dvb_si_descriptor_decode_short_event(dvbpsi_descriptor_t *des
     l = desc->p_data[o];
     ++o;
     d->text = util_convert_string(&desc->p_data[o], l);
+
+/*    dump_descriptor(desc);
+    fprintf(stderr, "decode_sort_event: [%s] “%s”, “%s”\n", d->language, d->description, d->text);*/
 
     return (dvb_si_descriptor *)d;
 }
