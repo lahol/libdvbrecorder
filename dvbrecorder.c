@@ -268,3 +268,10 @@ GList *dvb_recorder_get_epg(DVBRecorder *recorder)
 
     return dvb_reader_get_events(recorder->reader);
 }
+
+EPGEvent *dvb_recorder_get_epg_event(DVBRecorder *recorder, guint16 event_id)
+{
+    g_return_val_if_fail(recorder != NULL, NULL);
+
+    return dvb_reader_get_event(recorder->reader, event_id);
+}

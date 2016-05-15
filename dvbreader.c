@@ -444,6 +444,19 @@ GList *dvb_reader_get_events(DVBReader *reader)
     return g_list_sort(complete, (GCompareFunc)epg_event_compare_time);
 }
 
+EPGEvent *dvb_reader_get_event(DVBReader *reader, guint16 eventid)
+{
+    GList *tmp_table, *tmp;
+    for (tmp_table = reader->eit_tables; tmp_table; tmp_table = g_list_next(tmp_table)) {
+        for (tmp = ((struct EITable *)tmp_table->data)->events; tmp; tmp = g_list_next(tmp)) {
+            if (((EPGEvent *)tmp->data)->event_id == eventid)
+                return (EPGEvent *)tmp->data;
+        }
+    }
+
+    return NULL;
+}
+
 void dvb_reader_push_event(DVBReader *reader, DVBRecorderEvent *event)
 {
     g_mutex_lock(&reader->event_mutex);

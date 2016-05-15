@@ -2,6 +2,7 @@
 
 #include <glib.h>
 #include "events.h"
+#include "epg.h"
 
 typedef struct _DVBReader DVBReader;
 
@@ -47,3 +48,4 @@ void dvb_reader_start(DVBReader *reader);
 void dvb_reader_stop(DVBReader *reader);
 
 GList *dvb_reader_get_events(DVBReader *reader); /* new list containing reference of all events */
+EPGEvent *dvb_reader_get_event(DVBReader *reader, guint16 eventid); /* [no transfer] */

@@ -4,6 +4,7 @@
 
 #include "channels.h"
 #include "events.h"
+#include "epg.h"
 
 typedef struct _DVBRecorder DVBRecorder;
 
@@ -34,6 +35,7 @@ void dvb_recorder_record_stop(DVBRecorder *recorder);
 void dvb_recorder_query_record_status(DVBRecorder *recorder, DVBRecorderRecordStatus *status);
 
 GList *dvb_recorder_get_epg(DVBRecorder *recorder);
+EPGEvent *dvb_recorder_get_epg_event(DVBRecorder *recorder, guint16 event_id);
 
 DVBRecorderEvent *dvb_recorder_event_new(DVBRecorderEventType type, ...);
 DVBRecorderEvent *dvb_recorder_event_new_valist(DVBRecorderEventType type, va_list ap);

@@ -155,10 +155,10 @@ GList *epg_read_table(dvbpsi_eit_t *eit)
         event->duration = util_convert_bcd_time(tmp->i_duration, NULL, NULL, NULL);
 
         epg_event_read_descriptors(event, tmp->p_first_descriptor);
-        fprintf(stderr, "epg_read_table: short: %p, ext: %p\n",
+/*        fprintf(stderr, "epg_read_table: short: %p, ext: %p\n",
                 event->short_descriptions, event->extended_descriptions);
 
-        fprintf(stderr, "add event 0x%02x to table 0x%02x\n", event->event_id, event->table_id);
+        fprintf(stderr, "add event 0x%02x to table 0x%02x\n", event->event_id, event->table_id);*/
 /*        _lib_dump_event(event);*/
         event_list = g_list_prepend(event_list, event);
     }
@@ -233,4 +233,19 @@ EPGEvent *epg_event_dup(EPGEvent *event)
     dup->extended_descriptions = util_dup_list_deep(event->extended_descriptions, (UtilDataDupFunc)epg_extended_event_dup);
 
     return dup;
+}
+
+GList *epg_event_list_dup(GList *list)
+{
+    if (list == NULL)
+        return NULL;
+    GList *result = NULL;
+    EPGEvent *event;
+
+    for ( ; list; list = g_list_next(list)) {
+        event = epg_event_dup((EPGEvent *)list->data);
+        result = g_list_prepend(result, event);
+    }
+
+    return g_list_reverse(result);
 }
