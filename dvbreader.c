@@ -633,21 +633,33 @@ done:
     return NULL;
 }
 
-gboolean dvb_reader_get_stream_info(DVBReader *reader, gchar **provider, gchar **name, guint8 *type)
+DVBStreamInfo *dvb_reader_get_stream_info(DVBReader *reader)
 {
-    g_return_val_if_fail(reader != NULL, FALSE);
+    g_return_val_if_fail(reader != NULL, NULL);
 
     if (reader->service_info == NULL)
-        return FALSE;
+        return NULL;
 
-    if (provider)
-        *provider = g_strdup(reader->service_info->provider);
-    if (name)
-        *name = g_strdup(reader->service_info->name);
-    if (type)
-        *type = reader->service_info->type;
+    DVBStreamInfo *info = g_malloc0(sizeof(DVBStreamInfo));
 
-    return TRUE;
+    info->service_provider = g_strdup(reader->service_info->provider);
+    info->service_name = g_strdup(reader->service_info->name);
+    info->service_type = reader->service_info->type;
+
+    /* FIXME: read this from current eit (0x48) */
+    info->program_title = NULL;
+
+    return info;
+}
+
+void dvb_reader_stream_info_free(DVBStreamInfo *info)
+{
+    if (info) {
+        g_free(info->service_provider);
+        g_free(info->service_name);
+        g_free(info->program_title);
+        g_free(info);
+    }
 }
 
 /************************************************

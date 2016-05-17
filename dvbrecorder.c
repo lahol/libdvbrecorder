@@ -27,6 +27,8 @@ struct _DVBRecorder {
 
     int record_fd;
     gchar *record_filename;
+    gchar *record_filename_pattern;
+    gchar *capture_dir;
     DVBRecordStatus record_status;
     time_t record_start;
     time_t record_end;             /* keep data if stream was stopped, for last info */
@@ -60,6 +62,9 @@ DVBRecorder *dvb_recorder_new(DVBRecorderEventCallback cb, gpointer userdata)
     recorder->video_pipe[0] = -1;
     recorder->video_pipe[1] = -1;
     recorder->record_fd = -1;
+
+    recorder->capture_dir = g_strdup(g_get_home_dir());
+    recorder->record_filename_pattern = g_strdup("capture-${date:%Y%m%d-%H%M%S}.ts");
 
     recorder->reader = dvb_reader_new(dvb_recorder_event_callback, recorder);
     if (!recorder->reader)
@@ -175,10 +180,96 @@ err:
     dvb_recorder_record_stop(recorder);
 }
 
-gboolean dvb_recorder_record_start(DVBRecorder *recorder, const gchar *filename)
+void dvb_recorder_set_record_filename_pattern(DVBRecorder *recorder, const gchar *pattern)
+{
+    g_return_if_fail(recorder != NULL);
+
+    g_free(recorder->record_filename_pattern);
+    recorder->record_filename_pattern = g_strdup(pattern);
+}
+
+void dvb_recorder_set_snapshot_filename_pattern(DVBRecorder *recorder, const gchar *pattern)
+{
+}
+
+void dvb_recorder_set_capture_dir(DVBRecorder *recorder, const gchar *capture_dir)
+{
+    g_return_if_fail(recorder != NULL);
+
+    g_free(recorder->capture_dir);
+    recorder->capture_dir = g_strdup(capture_dir);
+}
+
+struct _pattern_match_info {
+    DVBStreamInfo *stream_info;
+    struct tm *local_time;
+};
+
+static gboolean dvb_recorder_filename_pattern_eval(const GMatchInfo *matchinfo, GString *res, struct _pattern_match_info *info)
+{
+    gchar *match = g_match_info_fetch(matchinfo, 0);
+
+    if (g_strcmp0(match, "${service_name}") == 0) {
+        g_string_append(res, info->stream_info->service_name);
+        fprintf(stderr, "matched service_name\n");
+    }
+    else if (g_strcmp0(match, "${service_provider}") == 0) {
+        g_string_append(res, info->stream_info->service_provider);
+        fprintf(stderr, "matched service_provider\n");
+    }
+    else if (g_strcmp0(match, "${program_name}") == 0) {
+        g_string_append(res, info->stream_info->program_title);
+        fprintf(stderr, "matched program_name\n");
+    }
+    else if (g_str_has_prefix(match, "${date:")) {
+        fprintf(stderr, "matched date\n");
+        match[strlen(match) - 1] = 0;
+        gchar tbuf[256];
+        strftime(tbuf, 256, &match[7], info->local_time);
+        g_string_append(res, tbuf);
+    }
+    else {
+        fprintf(stderr, "unmatched match: %s\n", match);
+    }
+
+    g_free(match);
+
+    return FALSE;
+}
+
+gchar *dvb_recorder_make_record_filename(DVBRecorder *recorder, const gchar *alternate_dir, const gchar *alternate_pattern)
+{
+    struct _pattern_match_info info;
+    info.stream_info = dvb_reader_get_stream_info(recorder->reader);
+    time_t t;
+    t = time(NULL);
+    info.local_time = localtime(&t);
+
+        /* in extra function: allow placeholders in (user-defined) filename:
+     * %{station_name}, %{station_provider}, %{date:%Y%m%d} */
+    GRegex *regex = g_regex_new("\\${service_name}|\\${service_provider}|\\${program_name}|\\${date:[^}]*}",
+                                0, 0, NULL);
+    gchar *filename = g_regex_replace_eval(regex, alternate_pattern ? alternate_pattern : recorder->record_filename_pattern,
+                                           -1, 0, 0,
+                                           (GRegexEvalCallback)dvb_recorder_filename_pattern_eval, &info, NULL);
+
+    dvb_reader_stream_info_free(info.stream_info);
+
+    g_regex_unref(regex);
+
+    gchar *result = g_build_filename(
+            alternate_dir ? alternate_dir : recorder->capture_dir,
+            filename,
+            NULL);
+
+    g_free(filename);
+
+    return result;
+}
+
+gboolean dvb_recorder_record_start(DVBRecorder *recorder)
 {
     g_return_val_if_fail(recorder != NULL, FALSE);
-    g_return_val_if_fail(filename != NULL && filename[0] != '\0', FALSE);
 
     if (recorder->record_status == DVB_RECORD_STATUS_RECORDING) {
         fprintf(stderr, "Already recording\n");
@@ -191,26 +282,21 @@ gboolean dvb_recorder_record_start(DVBRecorder *recorder, const gchar *filename)
         return FALSE;
     }
 
-    /* in extra function: allow placeholders in (user-defined) filename:
-     * %{station_name}, %{station_provider}, %{date:%Y%m%d} */
-    gchar *provider = NULL, *name = NULL;
-    guint8 type;
-    if (dvb_reader_get_stream_info(recorder->reader, &provider, &name, &type)) {
-        fprintf(stderr, "Provider: %s\nName: %s\nType: %d\n",
-                provider, name, type);
-        g_free(provider);
-        g_free(name);
-    }
 
-    recorder->record_fd = open(filename, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
-    if (recorder->record_fd == -1) {
-        fprintf(stderr, "Failed to open %s: (%d) %s\n", filename, errno, strerror(errno));
+    g_free(recorder->record_filename);
+    recorder->record_filename = dvb_recorder_make_record_filename(recorder, NULL, NULL);
+
+    if (!recorder->record_filename) {
+        fprintf(stderr, "Could not generate filename\n");
         return FALSE;
     }
 
-    if (recorder->record_filename)
-        g_free(recorder->record_filename);
-    recorder->record_filename = g_strdup(filename);
+    recorder->record_fd = open(recorder->record_filename, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
+    if (recorder->record_fd == -1) {
+        fprintf(stderr, "Failed to open %s: (%d) %s\n", recorder->record_filename, errno, strerror(errno));
+        return FALSE;
+    }
+
     recorder->record_size = 0;
     time(&recorder->record_start);
     recorder->record_status = DVB_RECORD_STATUS_RECORDING;
