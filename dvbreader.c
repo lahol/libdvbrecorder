@@ -779,6 +779,8 @@ void dvb_reader_dvbpsi_eit_cb(DVBReader *reader, dvbpsi_eit_t *eit)
 
     table->events = epg_read_table(eit);
 
+    /* TODO: if table_id == 0x48 get first (currently running) event and set reader, current program_name */
+
     dvb_recorder_event_send(DVB_RECORDER_EVENT_EIT_CHANGED,
             reader->event_cb, reader->event_data,
             "table-id", GUINT_TO_POINTER(eit->i_table_id),
