@@ -210,15 +210,18 @@ static gboolean dvb_recorder_filename_pattern_eval(const GMatchInfo *matchinfo, 
     gchar *match = g_match_info_fetch(matchinfo, 0);
 
     if (g_strcmp0(match, "${service_name}") == 0) {
-        g_string_append(res, info->stream_info->service_name);
+        if (info->stream_info->service_name)
+            g_string_append(res, info->stream_info->service_name);
         fprintf(stderr, "matched service_name\n");
     }
     else if (g_strcmp0(match, "${service_provider}") == 0) {
-        g_string_append(res, info->stream_info->service_provider);
+        if (info->stream_info->service_provider)
+            g_string_append(res, info->stream_info->service_provider);
         fprintf(stderr, "matched service_provider\n");
     }
     else if (g_strcmp0(match, "${program_name}") == 0) {
-        g_string_append(res, info->stream_info->program_title);
+        if (info->stream_info->program_title)
+            g_string_append(res, info->stream_info->program_title);
         fprintf(stderr, "matched program_name\n");
     }
     else if (g_str_has_prefix(match, "${date:")) {

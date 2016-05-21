@@ -633,6 +633,47 @@ done:
     return NULL;
 }
 
+gchar *dvb_reader_get_running_program(DVBReader *reader)
+{
+    g_return_val_if_fail(reader != NULL, NULL);
+
+    GList *tmp;
+    struct EITable *table = NULL;
+    EPGEvent *event = NULL;
+    EPGEvent *match = NULL;
+    
+    for (tmp = reader->eit_tables; tmp; tmp = g_list_next(tmp)) {
+        if (((struct EITable *)tmp->data)->table_id == 0x4e) { /* current/next program */
+            table = (struct EITable *)tmp->data;
+            break;
+        }
+    }
+
+    if (!table)
+        return NULL;
+
+    time_t current_time = time(NULL);
+
+    /* FIXME: if event starts in a few (configurable) seconds, use next program */
+
+    for (tmp = table->events; tmp; tmp = g_list_next(tmp)) {
+        event = (EPGEvent *)tmp->data;
+        fprintf(stderr, "get_running_program: starttime: %lu, running_status: %d\n",
+                event->starttime, event->running_status);
+        if (event->running_status == EPGEventStatusRunning) {
+            match = event;
+            break;
+        }
+        if (!match && event->starttime <= current_time && current_time <= event->starttime + event->duration)
+            match = event;
+    }
+
+    if (match && match->short_descriptions)
+        return g_strdup(((EPGShortEvent *)match->short_descriptions->data)->description);
+    else
+        return NULL;
+}
+
 DVBStreamInfo *dvb_reader_get_stream_info(DVBReader *reader)
 {
     g_return_val_if_fail(reader != NULL, NULL);
@@ -647,7 +688,7 @@ DVBStreamInfo *dvb_reader_get_stream_info(DVBReader *reader)
     info->service_type = reader->service_info->type;
 
     /* FIXME: read this from current eit (0x48) */
-    info->program_title = NULL;
+    info->program_title = dvb_reader_get_running_program(reader);
 
     return info;
 }
@@ -778,8 +819,6 @@ void dvb_reader_dvbpsi_eit_cb(DVBReader *reader, dvbpsi_eit_t *eit)
     g_list_free_full(table->events, (GDestroyNotify)epg_event_free);
 
     table->events = epg_read_table(eit);
-
-    /* TODO: if table_id == 0x48 get first (currently running) event and set reader, current program_name */
 
     dvb_recorder_event_send(DVB_RECORDER_EVENT_EIT_CHANGED,
             reader->event_cb, reader->event_data,
