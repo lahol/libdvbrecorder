@@ -26,6 +26,7 @@ guint32 channel_db_list_add(const gchar *title);
 
 void channel_db_list_add_entry(ChannelDBList *list, ChannelData *entry, gint pos);
 void channel_db_list_update_entry(ChannelDBList *list, ChannelData *entry, gint pos);
+void channel_db_list_remove_entry(ChannelDBList *list, ChannelData *entry);
 
 void channel_db_start_transaction(void);
 void channel_db_commit_transaction(void);

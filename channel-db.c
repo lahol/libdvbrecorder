@@ -8,6 +8,7 @@
 sqlite3 *dbhandler_db = NULL;
 sqlite3_stmt *fav_update_entry_stmt = NULL;
 sqlite3_stmt *fav_insert_entry_stmt = NULL;
+sqlite3_stmt *fav_delete_entry_stmt = NULL;
 sqlite3_stmt *insert_channel_stmt = NULL;
 sqlite3_stmt *update_channel_stmt = NULL;
 
@@ -80,6 +81,10 @@ void channel_db_dispose(void)
     if (fav_update_entry_stmt) {
         sqlite3_finalize(fav_update_entry_stmt);
         fav_update_entry_stmt = NULL;
+    }
+    if (fav_delete_entry_stmt) {
+        sqlite3_finalize(fav_delete_entry_stmt);
+        fav_delete_entry_stmt = NULL;
     }
     if (insert_channel_stmt) {
         sqlite3_finalize(insert_channel_stmt);
@@ -396,6 +401,27 @@ void channel_db_list_update_entry(ChannelDBList *list, ChannelData *entry, gint 
 
     rc = sqlite3_step(fav_update_entry_stmt);
     sqlite3_reset(fav_update_entry_stmt);
+}
+
+void channel_db_list_remove_entry(ChannelDBList *list, ChannelData *entry)
+{
+    if (dbhandler_db == NULL || list == NULL || entry == NULL)
+        return;
+
+    int rc;
+    if (fav_delete_entry_stmt == NULL) {
+        rc = sqlite3_prepare_v2(dbhandler_db,
+                "delete from favourites where chnl_id=? and list_id=?",
+                -1, &fav_delete_entry_stmt, NULL);
+        if (rc != SQLITE_OK)
+            return;
+    }
+
+    sqlite3_bind_int(fav_delete_entry_stmt, 1, entry->id);
+    sqlite3_bind_int(fav_delete_entry_stmt, 2, list->id);
+
+    rc = sqlite3_step(fav_delete_entry_stmt);
+    sqlite3_reset(fav_delete_entry_stmt);
 }
 
 void channel_db_start_transaction(void)
