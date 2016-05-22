@@ -15,7 +15,9 @@ typedef enum {
 
 typedef struct {
     guint32 id;
-    gchar *name;           /* Channel name */
+    gchar *nameraw;        /* Channel name as we read it */
+    gchar *name;           /* the channel name part of nameraw */
+    gchar *provider;       /* the provider part of nameraw */
     guint32 frequency;     /* Frequency MHz for DVB-S*/
     gchar *parameter;      /* Parameter @see parse_vdr_param */
     ChannelPolarization polarization; /* Polarization */
@@ -40,3 +42,4 @@ void channel_data_free(ChannelData *data);
 
 ChannelData *channel_data_parse(gchar *line, const gchar *satellite);
 gchar *channel_convert_name_to_xine(ChannelData *data);
+void channel_parse_name(gchar *vdrraw, gchar **name, gchar **provider);

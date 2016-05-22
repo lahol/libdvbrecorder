@@ -122,7 +122,8 @@ void channel_db_foreach(guint32 list_id, CHANNEL_DB_FOREACH_CALLBACK callback, g
 
     while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
         data.id = sqlite3_column_int(stmt, 0);
-        data.name = (gchar *)sqlite3_column_text(stmt, 1);
+        data.nameraw = (gchar *)sqlite3_column_text(stmt, 1);
+        channel_parse_name(data.nameraw, &data.name, &data.provider);
         data.frequency = sqlite3_column_int(stmt, 2);
         data.parameter = (gchar *)sqlite3_column_text(stmt, 3);
         data.signalsource = (gchar *)sqlite3_column_text(stmt, 4);
@@ -138,6 +139,8 @@ void channel_db_foreach(guint32 list_id, CHANNEL_DB_FOREACH_CALLBACK callback, g
         data.flags = sqlite3_column_int(stmt, 14);
 
         callback(&data, userdata);
+        g_free(data.name);
+        g_free(data.provider);
     }
 
     if (stmt != NULL)
@@ -206,7 +209,7 @@ guint32 channel_db_set_channel(ChannelData *data)
         sqlite3_bind_int(update_channel_stmt, 15, data->id);
         stmt = update_channel_stmt;
     }
-    sqlite3_bind_text(stmt, 1, data->name, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 1, data->nameraw, -1, SQLITE_TRANSIENT);
     sqlite3_bind_int(stmt, 2, data->frequency);
     sqlite3_bind_text(stmt, 3, data->parameter, -1, SQLITE_TRANSIENT);
     sqlite3_bind_text(stmt, 4, data->signalsource, -1, SQLITE_TRANSIENT);
@@ -258,7 +261,8 @@ ChannelData *channel_db_get_channel(guint32 id)
 
     data = g_malloc0(sizeof(ChannelData));
     data->id = id;
-    data->name = g_strdup((gchar *)sqlite3_column_text(stmt, 1));
+    data->nameraw = g_strdup((gchar *)sqlite3_column_text(stmt, 1));
+    channel_parse_name(data->nameraw, &data->name, &data->provider);
     data->frequency = sqlite3_column_int(stmt, 2);
     data->parameter = g_strdup((gchar *)sqlite3_column_text(stmt, 3));
     data->signalsource = g_strdup((gchar *)sqlite3_column_text(stmt, 4));
