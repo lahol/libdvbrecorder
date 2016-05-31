@@ -5,6 +5,7 @@
 #include "channels.h"
 #include "events.h"
 #include "epg.h"
+#include "streaminfo.h"
 
 typedef struct _DVBRecorder DVBRecorder;
 
@@ -45,3 +46,5 @@ DVBRecorderEvent *dvb_recorder_event_new_valist(DVBRecorderEventType type, va_li
 
 void dvb_recorder_event_set_property(DVBRecorderEvent *event, const gchar *prop_name, const gpointer prop_value);
 void dvb_recorder_event_destroy(DVBRecorderEvent *event);
+
+DVBStreamInfo *dvb_recorder_get_stream_info(DVBRecorder *recorder);

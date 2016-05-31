@@ -693,16 +693,6 @@ DVBStreamInfo *dvb_reader_get_stream_info(DVBReader *reader)
     return info;
 }
 
-void dvb_reader_stream_info_free(DVBStreamInfo *info)
-{
-    if (info) {
-        g_free(info->service_provider);
-        g_free(info->service_name);
-        g_free(info->program_title);
-        g_free(info);
-    }
-}
-
 /************************************************
  *
  *  TS handling
@@ -851,11 +841,16 @@ void dvb_reader_dvbpsi_sdt_cb(DVBReader *reader, dvbpsi_sdt_t *sdt)
             break;
         }
     }
+
+    reader->dvbpsi_have_sdt = 1;
+
+    fprintf(stderr, "send DVB_RECORDER_EVENT_SDT_CHANGED\n");
+    dvb_recorder_event_send(DVB_RECORDER_EVENT_SDT_CHANGED,
+            reader->event_cb, reader->event_data,
+            NULL, NULL);
     
     dvbpsi_sdt_delete(sdt);
     g_list_free_full(desc_list, (GDestroyNotify)dvb_si_descriptor_free);
-
-    reader->dvbpsi_have_sdt = 1;
 }
 
 void dvb_reader_dvbpsi_rst_cb(DVBReader *reader, dvbpsi_rst_t *rst)

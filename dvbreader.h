@@ -3,6 +3,7 @@
 #include <glib.h>
 #include "events.h"
 #include "epg.h"
+#include "streaminfo.h"
 
 typedef struct _DVBReader DVBReader;
 
@@ -33,15 +34,7 @@ void dvb_reader_remove_listener(DVBReader *reader, int fd, DVBReaderListenerCall
 gboolean dvb_reader_get_current_pat_packets(DVBReader *reader, guint8 **buffer, gsize *length);
 gboolean dvb_reader_get_current_pmt_packets(DVBReader *reader, guint8 **buffer, gsize *length);
 
-typedef struct {
-    gchar *service_provider;
-    gchar *service_name;
-    guint8 service_type;
-    gchar *program_title;
-} DVBStreamInfo;
-
 DVBStreamInfo *dvb_reader_get_stream_info(DVBReader *reader);
-void dvb_reader_stream_info_free(DVBStreamInfo *info);
 
 DVBStreamStatus dvb_reader_get_stream_status(DVBReader *reader);
 

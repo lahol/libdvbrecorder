@@ -47,6 +47,9 @@ void dvb_recorder_event_callback(DVBRecorderEvent *event, gpointer userdata)
         case DVB_RECORDER_EVENT_EIT_CHANGED:
             recorder->event_cb(event, recorder->event_data);
             break;
+        case DVB_RECORDER_EVENT_SDT_CHANGED:
+            recorder->event_cb(event, recorder->event_data);
+            break;
         default:
             break;
     }
@@ -256,7 +259,7 @@ gchar *dvb_recorder_make_record_filename(DVBRecorder *recorder, const gchar *alt
                                            -1, 0, 0,
                                            (GRegexEvalCallback)dvb_recorder_filename_pattern_eval, &info, NULL);
 
-    dvb_reader_stream_info_free(info.stream_info);
+    dvb_stream_info_free(info.stream_info);
 
     g_regex_unref(regex);
 
@@ -364,3 +367,11 @@ EPGEvent *dvb_recorder_get_epg_event(DVBRecorder *recorder, guint16 event_id)
 
     return dvb_reader_get_event(recorder->reader, event_id);
 }
+
+DVBStreamInfo *dvb_recorder_get_stream_info(DVBRecorder *recorder)
+{
+    g_return_val_if_fail(recorder != NULL, NULL);
+
+    return dvb_reader_get_stream_info(recorder->reader);
+}
+
