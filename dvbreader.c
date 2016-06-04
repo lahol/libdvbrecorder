@@ -80,7 +80,7 @@ struct DVBReaderListener {
     int fd;
     DVBReaderListenerCallback callback;
     gpointer userdata;
-    DVBReaderFilterType filter;
+    DVBFilterType filter;
     guint32 have_pat    : 1;
     guint32 have_pmt    : 1;
     guint32 write_error : 1;
@@ -88,7 +88,7 @@ struct DVBReaderListener {
 
 struct DVBPidDescription {
     uint16_t pid;
-    DVBReaderFilterType type;
+    DVBFilterType type;
 };
 
 void dvb_reader_reset(DVBReader *reader);
@@ -267,7 +267,7 @@ DVBStreamStatus dvb_reader_get_stream_status(DVBReader *reader)
     return reader->status;
 }
 
-void dvb_reader_add_active_pid(DVBReader *reader, uint16_t pid, DVBReaderFilterType type)
+void dvb_reader_add_active_pid(DVBReader *reader, uint16_t pid, DVBFilterType type)
 {
     struct DVBPidDescription *desc = g_malloc0(sizeof(struct DVBPidDescription));
 
@@ -281,7 +281,7 @@ void dvb_reader_add_active_pid(DVBReader *reader, uint16_t pid, DVBReaderFilterT
     reader->active_pids = g_list_prepend(reader->active_pids, desc);
 }
 
-DVBReaderFilterType dvb_reader_get_active_pid_type(DVBReader *reader, uint16_t pid)
+DVBFilterType dvb_reader_get_active_pid_type(DVBReader *reader, uint16_t pid)
 {
     GList *tmp;
     for (tmp = reader->active_pids; tmp; tmp = g_list_next(tmp)) {
@@ -289,7 +289,7 @@ DVBReaderFilterType dvb_reader_get_active_pid_type(DVBReader *reader, uint16_t p
             return ((struct DVBPidDescription *)tmp->data)->type;
     }
 
-    return DVB_FILTER_UNKNOWN;
+    return DVB_FILTER_OTHER;
 }
 
 static gint dvb_reader_compare_listener_fd(struct DVBReaderListener *listener, gpointer fd)
@@ -310,7 +310,7 @@ static gint dvb_reader_compare_listener_cb(struct DVBReaderListener *listener, g
     return 1;
 }
 
-void dvb_reader_set_listener(DVBReader *reader, DVBReaderFilterType filter, int fd,
+void dvb_reader_set_listener(DVBReader *reader, DVBFilterType filter, int fd,
                              DVBReaderListenerCallback callback, gpointer userdata)
 {
     g_return_if_fail(reader != NULL);
@@ -607,6 +607,10 @@ gpointer dvb_reader_data_thread_proc(DVBReader *reader)
             if (pfd[1].revents & POLLIN) {
                 bytes_read = read(pfd[1].fd, buffer, 16384);
                 if (bytes_read <= 0) {
+                    if (bytes_read == 0) {
+                        fprintf(stderr, "reached EOF\n");
+                        break;
+                    }
                     if (errno == EAGAIN)
                         continue;
                     fprintf(stderr, "[lib] Error reading data. Stopping thread. (%d) %s\n", errno, strerror(errno));
@@ -629,6 +633,11 @@ done:
     ts_reader_free(ts_reader);
 
     reader->data_thread = NULL;
+
+    dvb_recorder_event_send(DVB_RECORDER_EVENT_STREAM_STATUS_CHANGED,
+            reader->event_cb, reader->event_data,
+            "status", DVB_STREAM_STATUS_STOPPED,
+            NULL, NULL);
 
     return NULL;
 }
@@ -765,7 +774,7 @@ void dvb_reader_dvbpsi_pmt_cb(DVBReader *reader, dvbpsi_pmt_t *pmt)
     dvb_reader_rewrite_pmt(reader, pmt);
 
     dvbpsi_pmt_es_t *stream;
-    DVBReaderFilterType type;
+    DVBFilterType type;
     for (stream = pmt->p_first_es; stream; stream = stream->p_next) {
         switch (stream->i_type) {
             case 0x01:
@@ -780,7 +789,7 @@ void dvb_reader_dvbpsi_pmt_cb(DVBReader *reader, dvbpsi_pmt_t *pmt)
                 type = DVB_FILTER_TELETEXT;
                 break;
             default:
-                type = DVB_FILTER_UNKNOWN;
+                type = DVB_FILTER_OTHER;
                 break;
         }
 
@@ -1091,7 +1100,7 @@ gboolean dvb_reader_write_packet(DVBReader *reader, const uint8_t *packet)
 {
     GList *tmp;
     struct DVBReaderListener *listener;
-    DVBReaderFilterType type = dvb_reader_get_active_pid_type(reader, ts_get_pid(packet));
+    DVBFilterType type = dvb_reader_get_active_pid_type(reader, ts_get_pid(packet));
 
     g_mutex_lock(&reader->listener_mutex);
     for (tmp = reader->listeners; tmp; tmp = g_list_next(tmp)) {

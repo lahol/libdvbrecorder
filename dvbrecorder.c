@@ -33,6 +33,7 @@ struct _DVBRecorder {
     time_t record_start;
     time_t record_end;             /* keep data if stream was stopped, for last info */
     gsize record_size;
+    DVBFilterType record_filter;
 };
 
 void dvb_recorder_event_callback(DVBRecorderEvent *event, gpointer userdata)
@@ -42,11 +43,7 @@ void dvb_recorder_event_callback(DVBRecorderEvent *event, gpointer userdata)
         return;
     switch (event->type) {
         case DVB_RECORDER_EVENT_STREAM_STATUS_CHANGED:
-            recorder->event_cb(event, recorder->event_data);
-            break;
         case DVB_RECORDER_EVENT_EIT_CHANGED:
-            recorder->event_cb(event, recorder->event_data);
-            break;
         case DVB_RECORDER_EVENT_SDT_CHANGED:
             recorder->event_cb(event, recorder->event_data);
             break;
@@ -68,6 +65,8 @@ DVBRecorder *dvb_recorder_new(DVBRecorderEventCallback cb, gpointer userdata)
 
     recorder->capture_dir = g_strdup(g_get_home_dir());
     recorder->record_filename_pattern = g_strdup("capture-${date:%Y%m%d-%H%M%S}.ts");
+
+    recorder->record_filter = DVB_FILTER_ALL;
 
     recorder->reader = dvb_reader_new(dvb_recorder_event_callback, recorder);
     if (!recorder->reader)
@@ -140,8 +139,12 @@ gboolean dvb_recorder_set_channel(DVBRecorder *recorder, guint64 channel_id)
 {
     g_return_val_if_fail(recorder != NULL, FALSE);
 
+    fprintf(stderr, "dvb_recorder_set_channel %lu -> %lu\n", recorder->current_channel_id, channel_id);
+#ifndef DVB_TUNER_DUMMY
+    /* Allow same channel in dummy mode */
     if (recorder->current_channel_id == channel_id)
         return TRUE;
+#endif
 
     ChannelData *chdata = channel_db_get_channel(channel_id);
 
@@ -156,6 +159,9 @@ gboolean dvb_recorder_set_channel(DVBRecorder *recorder, guint64 channel_id)
                         0,                        /* sat number */
                         chdata->srate,            /* symbol rate */
                         chdata->sid);             /* program number */
+
+        recorder->current_channel_id = channel_id;
+
         return TRUE;
     }
     else {
@@ -163,7 +169,7 @@ gboolean dvb_recorder_set_channel(DVBRecorder *recorder, guint64 channel_id)
     }
 }
 
-void dvb_recorder_record_callback(const guint8 *packet, DVBReaderFilterType type, DVBRecorder *recorder)
+void dvb_recorder_record_callback(const guint8 *packet, DVBFilterType type, DVBRecorder *recorder)
 {
     ssize_t nw, offset;
     for (offset = 0; offset < TS_SIZE; offset += nw) {
@@ -308,7 +314,7 @@ gboolean dvb_recorder_record_start(DVBRecorder *recorder)
     recorder->record_status = DVB_RECORD_STATUS_RECORDING;
 
     /* FIXME: take filter from config */
-    dvb_reader_set_listener(recorder->reader, DVB_FILTER_ALL, -1,
+    dvb_reader_set_listener(recorder->reader, recorder->record_filter, -1,
             (DVBReaderListenerCallback)dvb_recorder_record_callback, recorder);
 
     dvb_recorder_event_send(DVB_RECORDER_EVENT_RECORD_STATUS_CHANGED,
@@ -373,5 +379,19 @@ DVBStreamInfo *dvb_recorder_get_stream_info(DVBRecorder *recorder)
     g_return_val_if_fail(recorder != NULL, NULL);
 
     return dvb_reader_get_stream_info(recorder->reader);
+}
+
+void dvb_recorder_set_record_filter(DVBRecorder *recorder, DVBFilterType filter)
+{
+    g_return_if_fail(recorder != NULL);
+
+    recorder->record_filter = filter;
+}
+
+DVBFilterType dvb_recorder_get_record_filter(DVBRecorder *recorder)
+{
+    g_return_val_if_fail(recorder != NULL, 0);
+
+    return recorder->record_filter;
 }
 
