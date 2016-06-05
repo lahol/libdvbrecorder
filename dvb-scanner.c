@@ -74,6 +74,7 @@ static gboolean _dvb_scanner_is_scanned_satellite(ChannelData *data, GList *scan
         "S23E5", "S23.E5",
         "S13E0", "S13E",
         "S28E2", "S28.2E",
+        "S9E0", "S9.0E",
         NULL, NULL
     };
 
