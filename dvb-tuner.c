@@ -246,6 +246,8 @@ static int dvb_tuner_do_tune(DVBTuner *tuner)
         return -1;
     }
 
+    fprintf(stderr, "FE_SET_FRONTEND successful\n");
+
     pfd[0].fd = tuner->frontend_fd;
     pfd[0].events = POLLIN;
 
