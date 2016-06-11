@@ -169,6 +169,16 @@ gboolean dvb_recorder_set_channel(DVBRecorder *recorder, guint64 channel_id)
     }
 }
 
+void dvb_recorder_stop(DVBRecorder *recorder)
+{
+    g_return_if_fail(recorder != NULL);
+
+    if (recorder->record_status == DVB_RECORD_STATUS_RECORDING)
+        dvb_recorder_record_stop(recorder);
+
+    dvb_reader_stop(recorder->reader);
+}
+
 void dvb_recorder_record_callback(const guint8 *packet, DVBFilterType type, DVBRecorder *recorder)
 {
     ssize_t nw, offset;
@@ -379,6 +389,13 @@ DVBStreamInfo *dvb_recorder_get_stream_info(DVBRecorder *recorder)
     g_return_val_if_fail(recorder != NULL, NULL);
 
     return dvb_reader_get_stream_info(recorder->reader);
+}
+
+DVBStreamStatus dvb_recorder_get_stream_status(DVBRecorder *recorder)
+{
+    g_return_val_if_fail(recorder != NULL, DVB_STREAM_STATUS_UNKNOWN);
+
+    return dvb_reader_get_stream_status(recorder->reader);
 }
 
 void dvb_recorder_set_record_filter(DVBRecorder *recorder, DVBFilterType filter)

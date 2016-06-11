@@ -7,6 +7,7 @@
 #include <stdarg.h>
 #include <errno.h>
 #include <inttypes.h>
+#include <sys/time.h>
 
 #include <unistd.h>
 #include <fcntl.h>
@@ -267,6 +268,12 @@ static int dvb_tuner_do_tune(DVBTuner *tuner)
     }
 
     /* xine: timeout */
+    struct timeval time_now;
+    struct timeval time_timeout;
+
+    gettimeofday(&time_timeout, NULL);
+    time_timeout.tv_sec += 5; /* five seconds timeout */
+
     fe_status_t status;
     do {
         status = 0;
@@ -281,6 +288,11 @@ static int dvb_tuner_do_tune(DVBTuner *tuner)
         }
 
         /* cannot get lock if there is no signal -> warn user */
+        gettimeofday(&time_now, NULL);
+        if (time_now.tv_sec > time_timeout.tv_sec) {
+            fprintf(stderr, "FE_TIMEDOUT\n");
+            return -1;
+        }
 
         usleep(10000);
     } while (!(status & FE_TIMEDOUT));

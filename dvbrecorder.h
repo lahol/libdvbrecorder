@@ -32,6 +32,7 @@ int dvb_recorder_enable_video_source(DVBRecorder *recorder, gboolean enable);
 
 GList *dvb_recorder_get_channel_list(DVBRecorder *recorder);
 gboolean dvb_recorder_set_channel(DVBRecorder *recorder, guint64 channel_id);
+void dvb_recorder_stop(DVBRecorder *recorder);
 gboolean dvb_recorder_record_start(DVBRecorder *recorder);
 void dvb_recorder_set_capture_dir(DVBRecorder *recorder, const gchar *capture_dir);
 void dvb_recorder_set_record_filename_pattern(DVBRecorder *recorder, const gchar *pattern);
@@ -49,6 +50,7 @@ void dvb_recorder_event_set_property(DVBRecorderEvent *event, const gchar *prop_
 void dvb_recorder_event_destroy(DVBRecorderEvent *event);
 
 DVBStreamInfo *dvb_recorder_get_stream_info(DVBRecorder *recorder);
+DVBStreamStatus dvb_recorder_get_stream_status(DVBRecorder *recorder);
 
 void dvb_recorder_set_record_filter(DVBRecorder *recorder, DVBFilterType filter);
 DVBFilterType dvb_recorder_get_record_filter(DVBRecorder *recorder);
