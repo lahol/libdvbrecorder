@@ -73,6 +73,7 @@ struct _DVBReader {
 
 struct EITable {
     guint8 table_id;
+    guint8 version;
     GList *events;
 };
 
@@ -807,10 +808,16 @@ void dvb_reader_dvbpsi_eit_cb(DVBReader *reader, dvbpsi_eit_t *eit)
     /* get table id, find in list, or create new, insert */
     struct EITable *table = (struct EITable *)g_list_find_custom(reader->eit_tables, GUINT_TO_POINTER(eit->i_table_id),
                                                                  (GCompareFunc)dvb_reader_find_table_id);
+
+    /* only update if table has not been read or if table has a new version */
+    if (table && table->version == eit->i_table_id)
+        goto done;
+
     if (table == NULL) {
         fprintf(stderr, "eit add table: 0x%02x\n", eit->i_table_id);
         table = g_malloc0(sizeof(struct EITable));
         table->table_id = eit->i_table_id;
+        table->version = eit->i_version;
         reader->eit_tables = g_list_insert_sorted(reader->eit_tables, table,
                                                   (GCompareFunc)dvb_reader_compare_event_tables_id);
     }
@@ -824,6 +831,7 @@ void dvb_reader_dvbpsi_eit_cb(DVBReader *reader, dvbpsi_eit_t *eit)
             "table-id", GUINT_TO_POINTER(eit->i_table_id),
             NULL, NULL);
 
+done:
     dvbpsi_eit_delete(eit);
 }
 
