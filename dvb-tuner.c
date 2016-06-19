@@ -325,7 +325,7 @@ int dvb_tuner_tune(DVBTuner *tuner,
     if (dvb_tuner_setup_frontend(tuner) < 0)
         return -1;
 
-    fprintf(stderr, "[lib] dvb_tuner_tune: frequency/symbolrate: %" PRIu32 "/%" PRIu32 "\n", frequency, symbolrate);
+    fprintf(stderr, "[lib] dvb_tuner_tune: frequency/symbolrate/pol: %" PRIu32 "/%" PRIu32 ", %u\n", frequency, symbolrate, polarization);
 
     while (frequency < 1000000) {
         frequency *= 1000;

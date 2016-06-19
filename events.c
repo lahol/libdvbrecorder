@@ -184,6 +184,7 @@ void dvb_recorder_event_tune_in_set_property(DVBRecorderEvent *event,
         ev->frequency = GPOINTER_TO_UINT(prop_value);
     }
     else if (g_strcmp0(prop_name, "polarization") == 0) {
+        fprintf(stderr, "event tune in set polarization: %u\n", GPOINTER_TO_UINT(prop_value));
         ev->polarization = GPOINTER_TO_UINT(prop_value);
     }
     else if (g_strcmp0(prop_name, "sat_no") == 0) {

@@ -153,6 +153,7 @@ gboolean dvb_recorder_set_channel(DVBRecorder *recorder, guint64 channel_id)
         if (recorder->record_status == DVB_RECORD_STATUS_RECORDING)
             dvb_recorder_record_stop(recorder);
 
+        fprintf(stderr, "dvbrecorder.c: dvb_reader_tune: chdata->polarization: %d\n", chdata->polarization);
         dvb_reader_tune(recorder->reader,
                         chdata->frequency,        /* frequency */
                         chdata->polarization == CHNL_POLARIZATION_HORIZONTAL ? 1 : 0,  /* polarization */
