@@ -1,7 +1,7 @@
 CC = gcc
 LD = gcc
 PKG_CONFIG = pkg-config
-CFLAGS += -Wall -g `$(PKG_CONFIG) --cflags glib-2.0`
+CFLAGS += -Wall `$(PKG_CONFIG) --cflags glib-2.0`
 LIBS += `$(PKG_CONFIG) --libs glib-2.0` -ldvbpsi
 RM ?= rm
 
@@ -9,6 +9,12 @@ PREFIX := /usr
 
 ifdef DVBDUMMY
 	CFLAGS += -DDVB_TUNER_DUMMY
+endif
+
+ifdef RELEASE
+	CFLAGS += -O2
+else
+	CFLAGS += -g
 endif
 
 all: libdvbrecorder.so.1.0
