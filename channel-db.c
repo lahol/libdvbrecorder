@@ -143,6 +143,8 @@ void channel_db_foreach(guint32 list_id, CHANNEL_DB_FOREACH_CALLBACK callback, g
         data.rid = sqlite3_column_int(stmt, 13);
         data.flags = sqlite3_column_int(stmt, 14);
 
+        channel_data_parse_vdr_parameter(&data);
+
         callback(&data, userdata);
         g_free(data.name);
         g_free(data.provider);
@@ -281,6 +283,8 @@ ChannelData *channel_db_get_channel(guint32 id)
     data->tid = sqlite3_column_int(stmt, 12);
     data->rid = sqlite3_column_int(stmt, 13);
     data->flags = sqlite3_column_int(stmt, 14);
+
+    channel_data_parse_vdr_parameter(data);
 
 done:
     if (stmt != NULL)

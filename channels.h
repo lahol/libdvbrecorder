@@ -43,3 +43,5 @@ void channel_data_free(ChannelData *data);
 ChannelData *channel_data_parse(gchar *line, const gchar *satellite);
 gchar *channel_convert_name_to_xine(ChannelData *data);
 void channel_parse_name(gchar *vdrraw, gchar **name, gchar **provider);
+void channel_data_parse_vdr_parameter(ChannelData *channel);
+
