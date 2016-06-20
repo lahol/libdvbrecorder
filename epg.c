@@ -171,6 +171,7 @@ void epg_event_free(EPGEvent *event)
     if (event) {
         g_list_free_full(event->short_descriptions, (GDestroyNotify)epg_short_event_free);
         g_list_free_full(event->extended_descriptions, (GDestroyNotify)epg_extended_event_free);
+        g_free(event);
     }
 }
 
