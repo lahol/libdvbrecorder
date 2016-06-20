@@ -806,8 +806,12 @@ void dvb_reader_dvbpsi_eit_cb(DVBReader *reader, dvbpsi_eit_t *eit)
 {
     fprintf(stderr, "eit_cb\n");
     /* get table id, find in list, or create new, insert */
-    struct EITable *table = (struct EITable *)g_list_find_custom(reader->eit_tables, GUINT_TO_POINTER(eit->i_table_id),
-                                                                 (GCompareFunc)dvb_reader_find_table_id);
+    struct EITable *table = NULL;
+    GList *table_entry = g_list_find_custom(reader->eit_tables, GUINT_TO_POINTER(eit->i_table_id),
+                                            (GCompareFunc)dvb_reader_find_table_id);
+
+    if (table_entry)
+        table = (struct EITable *)table_entry->data;
 
     /* only update if table has not been read or if table has a new version */
     if (table && table->version == eit->i_table_id)
