@@ -336,7 +336,7 @@ void dvb_reader_set_listener(DVBReader *reader, DVBFilterType filter, int fd,
     else
         element = g_list_find_custom(reader->listeners, callback, (GCompareFunc)dvb_reader_compare_listener_cb);
 
-    fprintf(stderr, "[lib] set listener: %d\n", fd);
+    LOG(reader->parent_obj, "[lib] set listener: %d\n", fd);
 
     if (element) {
         ((struct DVBReaderListener *)element->data)->filter = filter;
@@ -387,7 +387,7 @@ void dvb_reader_tune(DVBReader *reader,
     g_return_if_fail(reader != NULL);
 
     /* FIXME: stop running stream first */
-    fprintf(stderr, "dvb_reader_tune: frequency: %" PRIu32 ", polarization: %d\n", frequency, polarization);
+    LOG(reader->parent_obj, "dvb_reader_tune: frequency: %" PRIu32 ", polarization: %d\n", frequency, polarization);
 
     DVBRecorderEvent *event = dvb_recorder_event_new(DVB_RECORDER_EVENT_TUNE_IN,
                                                      "frequency", frequency,
@@ -404,7 +404,7 @@ void dvb_reader_start(DVBReader *reader)
     g_return_if_fail(reader != NULL);
 
     if (pipe(reader->control_pipe_stream) != 0)
-        fprintf(stderr, "Error creating control pipe.\n");
+        LOG(reader->parent_obj, "[lib] Error creating control pipe.\n");
 
     reader->status = DVB_STREAM_STATUS_RUNNING;
 
@@ -416,7 +416,7 @@ void dvb_reader_stop(DVBReader *reader)
     g_return_if_fail(reader != NULL);
 
     reader->status = DVB_STREAM_STATUS_STOPPED;
-    fprintf(stderr, "[lib] dvb_reader_stop: pipe_stream: %d/%d\n", reader->control_pipe_stream[0],
+    LOG(reader->parent_obj, "[lib] dvb_reader_stop: pipe_stream: %d/%d\n", reader->control_pipe_stream[0],
         reader->control_pipe_stream[1]);
 
     if (reader->control_pipe_stream[1] >= 0) {
@@ -507,12 +507,12 @@ DVBRecorderEvent *dvb_reader_pop_event(DVBReader *reader)
 
 void dvb_reader_event_handle_tune_in(DVBReader *reader, DVBRecorderEventTuneIn *event)
 {
-    fprintf(stderr, "Tune In Handler\n");
+    LOG(reader->parent_obj, "[lib] Tune In Handler\n");
     dvb_reader_stop(reader);
     int rc;
     g_mutex_lock(&reader->tuner_mutex);
     /* FIXME: make this cancellable */
-    fprintf(stderr, "[lib] dvb_reader_event_handle_tune_in frequency: %" PRIu32 ", pol: %d, srate: %d\n", event->frequency, event->polarization, event->symbol_rate);
+    LOG(reader->parent_obj, "[lib] dvb_reader_event_handle_tune_in frequency: %" PRIu32 ", pol: %d, srate: %d\n", event->frequency, event->polarization, event->symbol_rate);
     rc = dvb_tuner_tune(reader->tuner, event->frequency, event->polarization, event->sat_no,
                                        event->symbol_rate, NULL, 0);
     if (rc == 0) {
@@ -526,7 +526,7 @@ void dvb_reader_event_handle_tune_in(DVBReader *reader, DVBRecorderEventTuneIn *
     reader->tuner_fd = dvb_tuner_get_fd(reader->tuner);
     g_mutex_unlock(&reader->tuner_mutex);
 
-    fprintf(stderr, "[lib]: rc: %d, tuner fd: %d\n", rc, reader->tuner_fd);
+    LOG(reader->parent_obj, "[lib]: rc: %d, tuner fd: %d\n", rc, reader->tuner_fd);
 
     /* FIXME: notify callback about status change */
     if (reader->tuner_fd < 0) {
@@ -556,7 +556,7 @@ gpointer dvb_reader_event_thread_proc(DVBReader *reader)
     while (1) {
         event = dvb_reader_pop_event(reader);
 
-        fprintf(stderr, "[lib] reader_event_thread_proc event: %d\n", event->type);
+        LOG(reader->parent_obj, "[lib] reader_event_thread_proc event: %d\n", event->type);
 
         switch (event->type) {
             case DVB_RECORDER_EVENT_STOP_THREAD:
@@ -577,7 +577,7 @@ gpointer dvb_reader_event_thread_proc(DVBReader *reader)
 
 gpointer dvb_reader_data_thread_proc(DVBReader *reader)
 {
-    fprintf(stderr, "[lib] dvb_reader_data_thread_proc\n");
+    LOG(reader->parent_obj, "[lib] dvb_reader_data_thread_proc\n");
     static TsReaderClass tscls = {
         .handle_packet = dvb_reader_handle_packet,
     };
@@ -681,7 +681,7 @@ gchar *dvb_reader_get_running_program(DVBReader *reader)
 
     for (tmp = table->events; tmp; tmp = g_list_next(tmp)) {
         event = (EPGEvent *)tmp->data;
-        fprintf(stderr, "get_running_program: starttime: %lu, running_status: %d\n",
+        LOG(reader->parent_obj, "[lib] get_running_program: starttime: %lu, running_status: %d\n",
                 event->starttime, event->running_status);
         if (event->running_status == EPGEventStatusRunning) {
             match = event;
@@ -750,7 +750,7 @@ GList *dvb_reader_dvbpsi_handle_descriptors(DVBReader *reader, dvbpsi_descriptor
 
 void dvb_reader_dvbpsi_pat_cb(DVBReader *reader, dvbpsi_pat_t *pat)
 {
-    fprintf(stderr, "pat_cb\n");
+    LOG(reader->parent_obj, "pat_cb\n");
     if (reader->dvbpsi_have_pat) {
         dvbpsi_pat_delete(pat);
         return;
@@ -779,7 +779,7 @@ void dvb_reader_dvbpsi_pat_cb(DVBReader *reader, dvbpsi_pat_t *pat)
 
 void dvb_reader_dvbpsi_pmt_cb(DVBReader *reader, dvbpsi_pmt_t *pmt)
 {
-    fprintf(stderr, "pmt_cb\n");
+    LOG(reader->parent_obj, "pmt_cb\n");
     if (reader->dvbpsi_have_pmt) {
         dvbpsi_pmt_delete(pmt);
         return;
@@ -817,7 +817,7 @@ void dvb_reader_dvbpsi_pmt_cb(DVBReader *reader, dvbpsi_pmt_t *pmt)
 
 void dvb_reader_dvbpsi_eit_cb(DVBReader *reader, dvbpsi_eit_t *eit)
 {
-    fprintf(stderr, "eit_cb\n");
+    LOG(reader->parent_obj, "eit_cb\n");
     /* get table id, find in list, or create new, insert */
     struct EITable *table = NULL;
     GList *table_entry = g_list_find_custom(reader->eit_tables, GUINT_TO_POINTER(eit->i_table_id),
@@ -831,7 +831,7 @@ void dvb_reader_dvbpsi_eit_cb(DVBReader *reader, dvbpsi_eit_t *eit)
         goto done;
 
     if (table == NULL) {
-        fprintf(stderr, "eit add table: 0x%02x\n", eit->i_table_id);
+        LOG(reader->parent_obj, "eit add table: 0x%02x\n", eit->i_table_id);
         table = g_malloc0(sizeof(struct EITable));
         table->table_id = eit->i_table_id;
         table->version = eit->i_version;
@@ -878,7 +878,7 @@ void dvb_reader_dvbpsi_sdt_cb(DVBReader *reader, dvbpsi_sdt_t *sdt)
 
     reader->dvbpsi_have_sdt = 1;
 
-    fprintf(stderr, "send DVB_RECORDER_EVENT_SDT_CHANGED\n");
+    LOG(reader->parent_obj, "send DVB_RECORDER_EVENT_SDT_CHANGED\n");
     dvb_recorder_event_send(DVB_RECORDER_EVENT_SDT_CHANGED,
             reader->event_cb, reader->event_data,
             NULL, NULL);
@@ -889,7 +889,7 @@ void dvb_reader_dvbpsi_sdt_cb(DVBReader *reader, dvbpsi_sdt_t *sdt)
 
 void dvb_reader_dvbpsi_rst_cb(DVBReader *reader, dvbpsi_rst_t *rst)
 {
-    fprintf(stderr, "rst_cb\n");
+    LOG(reader->parent_obj, "rst_cb\n");
 
     dvbpsi_rst_delete(rst);
 }
@@ -1054,7 +1054,7 @@ void dvb_reader_listener_send_pat(DVBReader *reader, struct DVBReaderListener *l
 
     uint8_t i;
     for (i = 0; i < reader->pat_packet_count; ++i) {
-        fprintf(stderr, "PAT[%d]:\n", i);
+        LOG(reader->parent_obj, "PAT[%d]:\n", i);
         _dump_packet(&reader->pat_data[i * TS_SIZE]);
         listener->have_pat = 1;
         if (listener->fd >= 0) {
@@ -1074,7 +1074,7 @@ void dvb_reader_listener_send_pmt(DVBReader *reader, struct DVBReaderListener *l
 
     uint8_t i;
     for (i = 0; i < reader->pmt_packet_count; ++i) {
-        fprintf(stderr, "PMT[%d]:\n", i);
+        LOG(reader->parent_obj, "PMT[%d]:\n", i);
         _dump_packet(&reader->pmt_data[i * TS_SIZE]);
         listener->have_pmt = 1;
         if (listener->fd >= 0) {

@@ -13,6 +13,7 @@
 #include "read-ts.h"
 #include "channels.h"
 #include "channel-db.h"
+#include "logging.h"
 
 struct _DVBRecorder {
     DVBRecorderEventCallback event_cb;
@@ -86,7 +87,7 @@ err:
 
 void dvb_recorder_destroy(DVBRecorder *recorder)
 {
-    fprintf(stderr, "dvb_recorder_destroy\n");
+    LOG(recorder, "dvb_recorder_destroy\n");
     if (!recorder)
         return;
     if (recorder->video_pipe[0] >= 0)
@@ -131,20 +132,20 @@ int dvb_recorder_enable_video_source(DVBRecorder *recorder, gboolean enable)
     recorder->video_source_enabled = enable;
     if (enable) {
         if (pipe(recorder->video_pipe) != 0) {
-            fprintf(stderr, "pipe failed: (%d) %s\n", errno, strerror(errno));
+            LOG(recorder, "[lib] pipe failed: (%d) %s\n", errno, strerror(errno));
         }
-        fprintf(stderr, "video_pipe: %d/%d, reader: %p\n", recorder->video_pipe[0], recorder->video_pipe[1], recorder->reader);
+        LOG(recorder, "[lib] video_pipe: %d/%d, reader: %p\n", recorder->video_pipe[0], recorder->video_pipe[1], recorder->reader);
         /* for decoding (gstreamer) pat and pmt are necessary */
         dvb_reader_set_listener(recorder->reader,
                 DVB_FILTER_VIDEO | DVB_FILTER_AUDIO | DVB_FILTER_TELETEXT |
                 DVB_FILTER_SUBTITLES | DVB_FILTER_PAT | DVB_FILTER_PMT/* | DVB_FILTER_UNKNOWN*/,
                 recorder->video_pipe[1], NULL, NULL);
 
-        fprintf(stderr, "video_pipe: %d\n", recorder->video_pipe[0]);
+        LOG(recorder, "[lib] video_pipe: %d\n", recorder->video_pipe[0]);
         return recorder->video_pipe[0];
     }
     else {
-        fprintf(stderr, "[lib] enable_video_source: FALSE\n");
+        LOG(recorder, "[lib] enable_video_source: FALSE\n");
         dvb_reader_remove_listener(recorder->reader, recorder->video_pipe[1], NULL);
         close(recorder->video_pipe[0]);
         close(recorder->video_pipe[1]);
@@ -152,6 +153,7 @@ int dvb_recorder_enable_video_source(DVBRecorder *recorder, gboolean enable)
         recorder->video_pipe[1] = -1;
 
         return -1;
+
     }
 }
 
@@ -164,7 +166,7 @@ gboolean dvb_recorder_set_channel(DVBRecorder *recorder, guint64 channel_id)
 {
     g_return_val_if_fail(recorder != NULL, FALSE);
 
-    fprintf(stderr, "dvb_recorder_set_channel %lu -> %lu\n", recorder->current_channel_id, channel_id);
+    LOG(recorder, "[lib] dvb_recorder_set_channel %lu -> %lu\n", recorder->current_channel_id, channel_id);
 #ifndef DVB_TUNER_DUMMY
     /* Allow same channel in dummy mode */
     if (recorder->current_channel_id == channel_id)
@@ -178,7 +180,7 @@ gboolean dvb_recorder_set_channel(DVBRecorder *recorder, guint64 channel_id)
         if (recorder->record_status == DVB_RECORD_STATUS_RECORDING)
             dvb_recorder_record_stop(recorder);
 
-        fprintf(stderr, "dvbrecorder.c: dvb_reader_tune: chdata->polarization: %d\n", chdata->polarization);
+        LOG(recorder, "[lib] dvbrecorder.c: dvb_reader_tune: chdata->polarization: %d\n", chdata->polarization);
         dvb_reader_tune(recorder->reader,
                         chdata->frequency,        /* frequency */
                         chdata->polarization == CHNL_POLARIZATION_HORIZONTAL ? 1 : 0,  /* polarization */
@@ -211,7 +213,7 @@ void dvb_recorder_record_callback(const guint8 *packet, DVBFilterType type, DVBR
     for (offset = 0; offset < TS_SIZE; offset += nw) {
         if ((nw = write(recorder->record_fd, packet + offset, (size_t)(TS_SIZE - offset))) <= 0) {
             if (nw < 0) {
-                fprintf(stderr, "Could not write. Stop recording: %d (%s)\n", errno, strerror(errno));
+                LOG(recorder, "[lib] Could not write. Stop recording: %d (%s)\n", errno, strerror(errno));
                 goto err;
             }
             break;
@@ -320,13 +322,13 @@ gboolean dvb_recorder_record_start(DVBRecorder *recorder)
     g_return_val_if_fail(recorder != NULL, FALSE);
 
     if (recorder->record_status == DVB_RECORD_STATUS_RECORDING) {
-        fprintf(stderr, "Already recording\n");
+        LOG(recorder, "[lib] Already recording\n");
         return FALSE;
     }
 
     /* Query reader status first and return error if not tuned in? */
     if (dvb_reader_get_stream_status(recorder->reader) != DVB_STREAM_STATUS_RUNNING) {
-        fprintf(stderr, "Stream not running.\n");
+        LOG(recorder, "[lib] Stream not running.\n");
         return FALSE;
     }
 
@@ -335,13 +337,13 @@ gboolean dvb_recorder_record_start(DVBRecorder *recorder)
     recorder->record_filename = dvb_recorder_make_record_filename(recorder, NULL, NULL);
 
     if (!recorder->record_filename) {
-        fprintf(stderr, "Could not generate filename\n");
+        LOG(recorder, "[lib] Could not generate filename\n");
         return FALSE;
     }
 
     recorder->record_fd = open(recorder->record_filename, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
     if (recorder->record_fd == -1) {
-        fprintf(stderr, "Failed to open %s: (%d) %s\n", recorder->record_filename, errno, strerror(errno));
+        LOG(recorder, "[lib] Failed to open %s: (%d) %s\n", recorder->record_filename, errno, strerror(errno));
         return FALSE;
     }
 
@@ -365,7 +367,7 @@ void dvb_recorder_record_stop(DVBRecorder *recorder)
     g_return_if_fail(recorder != NULL);
 
     dvb_reader_remove_listener(recorder->reader, -1, (DVBReaderListenerCallback)dvb_recorder_record_callback);
-    fprintf(stderr, "[lib] dvb_recorder_record_stop, record_fd: %d\n", recorder->record_fd);
+    LOG(recorder, "[lib] dvb_recorder_record_stop, record_fd: %d\n", recorder->record_fd);
     if (recorder->record_fd >= 0) {
         close(recorder->record_fd);
         recorder->record_fd = -1;
