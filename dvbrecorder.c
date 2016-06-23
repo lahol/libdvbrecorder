@@ -314,7 +314,7 @@ gboolean dvb_recorder_record_start(DVBRecorder *recorder)
         return FALSE;
     }
 
-    recorder->record_fd = open(recorder->record_filename, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
+    recorder->record_fd = open(recorder->record_filename, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
     if (recorder->record_fd == -1) {
         fprintf(stderr, "Failed to open %s: (%d) %s\n", recorder->record_filename, errno, strerror(errno));
         return FALSE;
