@@ -8,6 +8,7 @@
 #include <time.h>
 #include "dvbrecorder.h"
 #include "dvbreader.h"
+#include "dvbreader-internal.h"
 #include "events.h"
 #include "read-ts.h"
 #include "channels.h"
@@ -16,6 +17,9 @@
 struct _DVBRecorder {
     DVBRecorderEventCallback event_cb;
     gpointer event_data;
+
+    DVBRecorderLoggerProc logger;
+    gpointer logger_data;
 
     gboolean video_source_enabled;
 
@@ -71,6 +75,7 @@ DVBRecorder *dvb_recorder_new(DVBRecorderEventCallback cb, gpointer userdata)
     recorder->reader = dvb_reader_new(dvb_recorder_event_callback, recorder);
     if (!recorder->reader)
         goto err;
+    dvb_reader_set_parent_obj(recorder->reader, recorder);
 
     return recorder;
 
@@ -94,6 +99,26 @@ void dvb_recorder_destroy(DVBRecorder *recorder)
     dvb_reader_destroy(recorder->reader);
 
     g_free(recorder);
+}
+
+void dvb_recorder_set_logger(DVBRecorder *recorder, DVBRecorderLoggerProc logger, gpointer userdata)
+{
+    g_return_if_fail(recorder != NULL);
+
+    recorder->logger = logger;
+    recorder->logger_data = userdata;
+}
+
+gboolean dvb_recorder_get_logger(DVBRecorder *recorder, DVBRecorderLoggerProc *logger, gpointer *userdata)
+{
+    g_return_val_if_fail(recorder != NULL, FALSE);
+
+    if (logger)
+        *logger = recorder->logger;
+    if (userdata)
+        *userdata = recorder->logger_data;
+    
+    return TRUE;
 }
 
 int dvb_recorder_enable_video_source(DVBRecorder *recorder, gboolean enable)

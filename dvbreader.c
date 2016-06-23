@@ -26,9 +26,14 @@
 #include "epg.h"
 #include "epg-internal.h"
 
+#include "logging.h"
+#include "dvbreader-internal.h"
+
 struct _DVBReader {
     DVBRecorderEventCallback event_cb;
     gpointer event_data;
+
+    gpointer parent_obj;
 
     GList *listeners;
     GMutex listener_mutex;
@@ -115,6 +120,13 @@ void dvb_reader_dvbpsi_rst_cb(DVBReader *reader, dvbpsi_rst_t *rst);
 void dvb_reader_dvbpsi_demux_new_subtable(dvbpsi_t *handle, uint8_t table_id, uint16_t extension, void *userdata);
 gboolean dvb_reader_write_packet(DVBReader *reader, const uint8_t *packet);
 gboolean dvb_reader_handle_packet(const uint8_t *packet, void *userdata);
+
+void dvb_reader_set_parent_obj(DVBReader *reader, gpointer parent)
+{
+    if (!reader)
+        return;
+    reader->parent_obj = parent;
+}
 
 gint dvb_reader_compare_event_tables_id(struct EITable *a, struct EITable *b)
 {
@@ -595,7 +607,7 @@ gpointer dvb_reader_data_thread_proc(DVBReader *reader)
     pfd[0].fd = reader->control_pipe_stream[0];
     pfd[0].events = POLLIN;
 
-    fprintf(stderr, "[lib] tuner fd: %d\n", reader->tuner_fd);
+    LOG(reader->parent_obj, "[lib] tuner fd: %d\n", reader->tuner_fd);
     if (reader->tuner_fd < 0) {
         /* send event tuning failed */
         goto done;
@@ -609,22 +621,22 @@ gpointer dvb_reader_data_thread_proc(DVBReader *reader)
                 bytes_read = read(pfd[1].fd, buffer, 16384);
                 if (bytes_read <= 0) {
                     if (bytes_read == 0) {
-                        fprintf(stderr, "reached EOF\n");
+                        LOG(reader->parent_obj, "[lib] reached EOF\n");
                         break;
                     }
                     if (errno == EAGAIN)
                         continue;
-                    fprintf(stderr, "[lib] Error reading data. Stopping thread. (%d) %s\n", errno, strerror(errno));
+                    LOG(reader->parent_obj, "[lib] Error reading data. Stopping thread. (%d) %s\n", errno, strerror(errno));
                     break;
                 }
                 ts_reader_push_buffer(ts_reader, buffer, bytes_read);
             }
             if (pfd[0].revents & POLLIN || pfd[0].revents & POLLNVAL) {
-                fprintf(stderr, "Received data on control pipe. Stop thread.\n");
+                LOG(reader->parent_obj, "[lib] Received data on control pipe. Stop thread.\n");
                 break;
             }
             if (pfd[1].revents & POLLNVAL || pfd[1].revents & POLLHUP || pfd[1].revents & POLLERR) {
-                fprintf(stderr, "Input closed\n");
+                LOG(reader->parent_obj, "[lib] Input closed\n");
                 break;
             }
         }
@@ -635,6 +647,7 @@ done:
 
     reader->data_thread = NULL;
 
+    LOG(reader->parent_obj, "[lib] Stream stopped\n");
     dvb_recorder_event_send(DVB_RECORDER_EVENT_STREAM_STATUS_CHANGED,
             reader->event_cb, reader->event_data,
             "status", DVB_STREAM_STATUS_STOPPED,
