@@ -415,8 +415,12 @@ void dvb_tuner_add_pid(DVBTuner *tuner, uint16_t pid)
     params.pes_type = DMX_PES_OTHER; /* AUDIO/VIDIO/SUBTITLE/TELETEXT/PCR */
     params.flags = DMX_IMMEDIATE_START;
     if (ioctl(filter->filter.fd, DMX_SET_PES_FILTER, &params) < 0) {
-        fprintf(stderr, "Error setting up filter for pid %u.\n", pid);
+        fprintf(stderr, "[lib] Error setting up filter for pid %u.\n", pid);
         goto err;
+    }
+
+    if (ioctl(filter->filter.fd, DMX_SET_BUFFER_SIZE, 8 * 4096) < 0) {
+        fprintf(stderr, "[lib] Error setting buffer size for pid %u.\n", pid);
     }
 
     tuner->pid_filters = filter;
