@@ -600,7 +600,7 @@ gpointer dvb_reader_data_thread_proc(DVBReader *reader)
     dvb_reader_add_active_pid(reader, 19, DVB_FILTER_RST);
 
 
-    uint8_t buffer[16384];
+    uint8_t buffer[8*4096];
     ssize_t bytes_read;
     struct pollfd pfd[2];
 
@@ -618,7 +618,7 @@ gpointer dvb_reader_data_thread_proc(DVBReader *reader)
     while (1) {
         if (poll(pfd, 2, 15000)) {
             if (pfd[1].revents & POLLIN) {
-                bytes_read = read(pfd[1].fd, buffer, 16384);
+                bytes_read = read(pfd[1].fd, buffer, 8*4096);
                 if (bytes_read <= 0) {
                     if (bytes_read == 0) {
                         LOG(reader->parent_obj, "[lib] reached EOF\n");
@@ -626,6 +626,10 @@ gpointer dvb_reader_data_thread_proc(DVBReader *reader)
                     }
                     if (errno == EAGAIN)
                         continue;
+                    if (errno == EOVERFLOW) {
+                        LOG(reader->parent_obj, "[lib] Overflow, continue\n");
+                        continue;
+                    }
                     LOG(reader->parent_obj, "[lib] Error reading data. Stopping thread. (%d) %s\n", errno, strerror(errno));
                     break;
                 }
