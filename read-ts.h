@@ -8,7 +8,7 @@ typedef struct _TsReader TsReader;
 typedef struct _TsReaderClass {
     /* callbacks for packets/tables/… */
     /* Handle a packet. */
-    gboolean (*handle_packet)(const uint8_t *, void *);
+    gboolean (*handle_packet)(const uint8_t *, void *); /* required */
 } TsReaderClass;
 
 TsReader *ts_reader_new(TsReaderClass *klass, void *userdata);
