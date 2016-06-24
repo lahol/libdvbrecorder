@@ -15,7 +15,16 @@ struct _TsReader {
     guint32 error_occured : 1;
 };
 
-void ts_reader_advance_buffer(TsReader *reader, size_t len)
+gboolean ts_reader_handle_packet_fallback(const uint8_t *packet, void *userdata)
+{
+    return TRUE;
+}
+
+TsReaderClass ts_reader_class_fallback = {
+    .handle_packet = ts_reader_handle_packet_fallback,
+};
+
+static inline void ts_reader_advance_buffer(TsReader *reader, size_t len)
 {
     reader->buffer += len;
     reader->remaining -= len;
@@ -53,16 +62,16 @@ err:
     reader->remaining = 0;
 }
 
-void ts_reader_process_packet(TsReader *reader)
+static inline void ts_reader_process_packet(TsReader *reader)
 {
-    if (!ts_validate(reader->packet_data)) {
-        reader->bytes_read = 0;
-        ts_reader_sync_stream(reader);
-        return;
-    }
-    if (reader->klass.handle_packet)
+    if (ts_validate(reader->packet_data)) {
         if (!reader->klass.handle_packet(reader->packet_data, reader->cb_userdata))
             reader->error_occured = 1;
+    }
+    else {
+        reader->bytes_read = 0;
+        ts_reader_sync_stream(reader);
+    }
 }
 
 void ts_reader_read_packet_partial(TsReader *reader)
@@ -87,6 +96,12 @@ TsReader *ts_reader_new(TsReaderClass *klass, void *userdata)
         return NULL;
     if (klass)
         reader->klass = *klass;
+    else
+        reader->klass = ts_reader_class_fallback;
+
+    if (!reader->klass.handle_packet)
+        reader->klass.handle_packet = ts_reader_handle_packet_fallback;
+
     reader->cb_userdata = userdata;
 
     return reader;
