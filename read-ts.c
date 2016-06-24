@@ -74,7 +74,7 @@ static inline void ts_reader_process_packet(TsReader *reader)
     }
 }
 
-void ts_reader_read_packet_partial(TsReader *reader)
+static inline void ts_reader_read_packet_partial(TsReader *reader)
 {
     if (reader->remaining < TS_SIZE - reader->bytes_read) {
         memcpy(&reader->packet_data[reader->bytes_read], reader->buffer, reader->remaining);
