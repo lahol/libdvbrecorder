@@ -338,12 +338,15 @@ void dvb_reader_set_listener(DVBReader *reader, DVBFilterType filter, int fd,
 
     LOG(reader->parent_obj, "[lib] set listener: %d\n", fd);
 
+    struct DVBReaderListener *listener = NULL;
+
     if (element) {
-        ((struct DVBReaderListener *)element->data)->filter = filter;
-        ((struct DVBReaderListener *)element->data)->userdata = userdata;
+        listener = (struct DVBReaderListener *)element->data;
+        listener->filter = filter;
+        listener->userdata = userdata;
     }
     else {
-        struct DVBReaderListener *listener = g_malloc0(sizeof(struct DVBReaderListener));
+        listener = g_malloc0(sizeof(struct DVBReaderListener));
 
         listener->fd = fd;
         listener->callback = callback;
@@ -352,6 +355,9 @@ void dvb_reader_set_listener(DVBReader *reader, DVBFilterType filter, int fd,
 
         reader->listeners = g_list_prepend(reader->listeners, listener);
     }
+
+    dvb_reader_listener_send_pat(reader, listener);
+    dvb_reader_listener_send_pmt(reader, listener);
 
     g_mutex_unlock(&reader->listener_mutex);
 }
@@ -1053,6 +1059,7 @@ void _dump_packet(const uint8_t *packet)
 
 void dvb_reader_listener_send_pat(DVBReader *reader, struct DVBReaderListener *listener)
 {
+    LOG(reader->parent_obj, "Send PAT to listener\n");
     if (reader->pat_packet_count == 0)
         return;
 
@@ -1073,6 +1080,7 @@ void dvb_reader_listener_send_pat(DVBReader *reader, struct DVBReaderListener *l
 
 void dvb_reader_listener_send_pmt(DVBReader *reader, struct DVBReaderListener *listener)
 {
+    LOG(reader->parent_obj, "Send PMT to listener\n");
     if (reader->pmt_packet_count == 0)
         return;
 
@@ -1148,7 +1156,8 @@ gboolean dvb_reader_write_packet(DVBReader *reader, const uint8_t *packet)
         else if (type == DVB_FILTER_PAT && (listener->filter & DVB_FILTER_PAT) && listener->have_pat == 0) {
             dvb_reader_listener_send_pat(reader, listener);
         }
-        else if (type == DVB_FILTER_PMT && (listener->filter & DVB_FILTER_PMT) && listener->have_pmt == 0) {
+        else if (type == DVB_FILTER_PMT && (listener->filter & DVB_FILTER_PMT) && listener->have_pmt == 0
+                 /*&& (((listener->filter & DVB_FILTER_PAT) && listener->have_pat) || !(listener->filter & DVB_FILTER_PAT))*/) {
             dvb_reader_listener_send_pmt(reader, listener);
         }
     }
