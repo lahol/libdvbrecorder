@@ -1036,7 +1036,7 @@ gboolean _dvb_reader_write_packet_full(int fd, const uint8_t *packet)
     for (offset = 0; offset < TS_SIZE; offset += nw) {
         if ((nw = write(fd, packet + offset, (size_t)(TS_SIZE - offset))) <= 0) {
             if (nw < 0) {
-                fprintf(stderr, "Could not write.\n");
+                fprintf(stderr, "Could not write to %d.\n", fd);
                 return FALSE;
             }
             break;
