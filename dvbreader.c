@@ -885,9 +885,10 @@ void dvb_reader_dvbpsi_sdt_cb(DVBReader *reader, dvbpsi_sdt_t *sdt)
         }
     }
 
+    LOG(reader->parent_obj, "[lib] SDT: service_info: %p\n", reader->service_info);
     reader->dvbpsi_have_sdt = 1;
 
-    LOG(reader->parent_obj, "send DVB_RECORDER_EVENT_SDT_CHANGED\n");
+    LOG(reader->parent_obj, "[lib] send DVB_RECORDER_EVENT_SDT_CHANGED\n");
     dvb_recorder_event_send(DVB_RECORDER_EVENT_SDT_CHANGED,
             reader->event_cb, reader->event_data,
             NULL, NULL);
