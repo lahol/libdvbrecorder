@@ -257,17 +257,17 @@ static gboolean dvb_recorder_filename_pattern_eval(const GMatchInfo *matchinfo, 
     gchar *match = g_match_info_fetch(matchinfo, 0);
 
     if (g_strcmp0(match, "${service_name}") == 0) {
-        if (info->stream_info->service_name)
+        if (info->stream_info && info->stream_info->service_name)
             g_string_append(res, info->stream_info->service_name);
         fprintf(stderr, "matched service_name\n");
     }
     else if (g_strcmp0(match, "${service_provider}") == 0) {
-        if (info->stream_info->service_provider)
+        if (info->stream_info && info->stream_info->service_provider)
             g_string_append(res, info->stream_info->service_provider);
         fprintf(stderr, "matched service_provider\n");
     }
     else if (g_strcmp0(match, "${program_name}") == 0) {
-        if (info->stream_info->program_title)
+        if (info->stream_info && info->stream_info->program_title)
             g_string_append(res, info->stream_info->program_title);
         fprintf(stderr, "matched program_name\n");
     }
@@ -321,6 +321,8 @@ gboolean dvb_recorder_record_start(DVBRecorder *recorder)
 {
     g_return_val_if_fail(recorder != NULL, FALSE);
 
+    LOG(recorder, "[lib] dvb_recorder_record_start\n");
+
     if (recorder->record_status == DVB_RECORD_STATUS_RECORDING) {
         LOG(recorder, "[lib] Already recording\n");
         return FALSE;
@@ -332,6 +334,7 @@ gboolean dvb_recorder_record_start(DVBRecorder *recorder)
         return FALSE;
     }
 
+    LOG(recorder, "[lib] make record filename\n");
 
     g_free(recorder->record_filename);
     recorder->record_filename = dvb_recorder_make_record_filename(recorder, NULL, NULL);
@@ -340,6 +343,8 @@ gboolean dvb_recorder_record_start(DVBRecorder *recorder)
         LOG(recorder, "[lib] Could not generate filename\n");
         return FALSE;
     }
+
+    LOG(recorder, "[lib] open record fd\n");
 
     recorder->record_fd = open(recorder->record_filename, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
     if (recorder->record_fd == -1) {
@@ -351,14 +356,19 @@ gboolean dvb_recorder_record_start(DVBRecorder *recorder)
     time(&recorder->record_start);
     recorder->record_status = DVB_RECORD_STATUS_RECORDING;
 
+    LOG(recorder, "[lib] set listener to record callback\n");
     /* FIXME: take filter from config */
     dvb_reader_set_listener(recorder->reader, recorder->record_filter, -1,
             (DVBReaderListenerCallback)dvb_recorder_record_callback, recorder);
 
+    LOG(recorder, "[lib] send event aoubt status change\n");
     dvb_recorder_event_send(DVB_RECORDER_EVENT_RECORD_STATUS_CHANGED,
             recorder->event_cb, recorder->event_data,
             "status", DVB_RECORD_STATUS_RECORDING,
             NULL, NULL);
+
+    LOG(recorder, "[lib] finished sending event\n");
+
     return TRUE;
 }
 
