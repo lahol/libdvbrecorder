@@ -713,14 +713,11 @@ DVBStreamInfo *dvb_reader_get_stream_info(DVBReader *reader)
 {
     g_return_val_if_fail(reader != NULL, NULL);
 
-    if (reader->service_info == NULL)
-        return NULL;
-
     DVBStreamInfo *info = g_malloc0(sizeof(DVBStreamInfo));
 
-    info->service_provider = g_strdup(reader->service_info->provider);
-    info->service_name = g_strdup(reader->service_info->name);
-    info->service_type = reader->service_info->type;
+    info->service_provider = reader->service_info ? g_strdup(reader->service_info->provider) : NULL;
+    info->service_name = reader->service_info ? g_strdup(reader->service_info->name) : NULL;
+    info->service_type = reader->service_info ? reader->service_info->type : NULL;
 
     /* FIXME: read this from current eit (0x48) */
     info->program_title = dvb_reader_get_running_program(reader);
