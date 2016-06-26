@@ -256,19 +256,31 @@ static gboolean dvb_recorder_filename_pattern_eval(const GMatchInfo *matchinfo, 
 {
     gchar *match = g_match_info_fetch(matchinfo, 0);
 
+    GRegex *fn_regex = g_regex_new("/", 0, 0, NULL);
+    gchar *str = NULL;
+
     if (g_strcmp0(match, "${service_name}") == 0) {
-        if (info->stream_info && info->stream_info->service_name)
-            g_string_append(res, info->stream_info->service_name);
+        if (info->stream_info && info->stream_info->service_name) {
+            str = g_regex_replace_literal(fn_regex, info->stream_info->service_name,
+                    -1, 0, "_", 0, NULL);
+            g_string_append(res, str);
+        }
         fprintf(stderr, "matched service_name\n");
     }
     else if (g_strcmp0(match, "${service_provider}") == 0) {
-        if (info->stream_info && info->stream_info->service_provider)
-            g_string_append(res, info->stream_info->service_provider);
+        if (info->stream_info && info->stream_info->service_provider) {
+            str = g_regex_replace_literal(fn_regex, info->stream_info->service_provider,
+                    -1, 0, "_", 0, NULL);
+            g_string_append(res, str);
+        }
         fprintf(stderr, "matched service_provider\n");
     }
     else if (g_strcmp0(match, "${program_name}") == 0) {
-        if (info->stream_info && info->stream_info->program_title)
-            g_string_append(res, info->stream_info->program_title);
+        if (info->stream_info && info->stream_info->program_title) {
+            str = g_regex_replace_literal(fn_regex, info->stream_info->program_title,
+                    -1, 0, "_", 0, NULL);
+            g_string_append(res, str);
+        }
         fprintf(stderr, "matched program_name\n");
     }
     else if (g_str_has_prefix(match, "${date:")) {
@@ -282,6 +294,8 @@ static gboolean dvb_recorder_filename_pattern_eval(const GMatchInfo *matchinfo, 
         fprintf(stderr, "unmatched match: %s\n", match);
     }
 
+    g_free(str);
+    g_regex_unref(fn_regex);
     g_free(match);
 
     return FALSE;
