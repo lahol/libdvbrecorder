@@ -717,7 +717,7 @@ DVBStreamInfo *dvb_reader_get_stream_info(DVBReader *reader)
 
     info->service_provider = reader->service_info ? g_strdup(reader->service_info->provider) : NULL;
     info->service_name = reader->service_info ? g_strdup(reader->service_info->name) : NULL;
-    info->service_type = reader->service_info ? reader->service_info->type : NULL;
+    info->service_type = reader->service_info ? reader->service_info->type : 0;
 
     /* FIXME: read this from current eit (0x48) */
     info->program_title = dvb_reader_get_running_program(reader);
