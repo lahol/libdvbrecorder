@@ -90,11 +90,14 @@ void dvb_recorder_destroy(DVBRecorder *recorder)
     LOG(recorder, "dvb_recorder_destroy\n");
     if (!recorder)
         return;
+
+    dvb_recorder_enable_video_source(recorder, FALSE);
+    if (recorder->video_pipe[1] >= 0) {
+        close(recorder->video_pipe[1]);
+    }
+
     if (recorder->video_pipe[0] >= 0)
         close(recorder->video_pipe[0]);
-    if (recorder->video_pipe[1] >= 0)
-        close(recorder->video_pipe[1]);
-
     g_free(recorder->record_filename);
 
     dvb_reader_destroy(recorder->reader);
