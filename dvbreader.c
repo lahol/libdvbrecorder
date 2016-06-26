@@ -328,6 +328,8 @@ void dvb_reader_set_listener(DVBReader *reader, DVBFilterType filter, int fd,
 {
     g_return_if_fail(reader != NULL);
 
+    LOG(reader->parent_obj, "[lib] set listener %d (%p), mutex: %p\n", fd, callback, &reader->listener_mutex);
+
     g_mutex_lock(&reader->listener_mutex);
 
     GList *element = NULL;
@@ -335,8 +337,6 @@ void dvb_reader_set_listener(DVBReader *reader, DVBFilterType filter, int fd,
         element = g_list_find_custom(reader->listeners, GINT_TO_POINTER(fd), (GCompareFunc)dvb_reader_compare_listener_fd);
     else
         element = g_list_find_custom(reader->listeners, callback, (GCompareFunc)dvb_reader_compare_listener_cb);
-
-    LOG(reader->parent_obj, "[lib] set listener: %d\n", fd);
 
     struct DVBReaderListener *listener = NULL;
 
@@ -365,6 +365,8 @@ void dvb_reader_set_listener(DVBReader *reader, DVBFilterType filter, int fd,
 void dvb_reader_remove_listener(DVBReader *reader, int fd, DVBReaderListenerCallback callback)
 {
     g_return_if_fail(reader != NULL);
+
+    LOG(reader->parent_obj, "[lib] remove listener %d (%p), mutex: %p\n", fd, callback, &reader->listener_mutex);
 
     g_mutex_lock(&reader->listener_mutex);
 
