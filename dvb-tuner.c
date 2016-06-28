@@ -419,9 +419,9 @@ void dvb_tuner_add_pid(DVBTuner *tuner, uint16_t pid)
         goto err;
     }
 
-    if (ioctl(filter->filter.fd, DMX_SET_BUFFER_SIZE, 8 * 4096) < 0) {
+/*    if (ioctl(filter->filter.fd, DMX_SET_BUFFER_SIZE, 8 * 4096) < 0) {
         fprintf(stderr, "[lib] Error setting buffer size for pid %u.\n", pid);
-    }
+    }*/
 
     tuner->pid_filters = filter;
 
