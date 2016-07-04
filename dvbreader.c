@@ -1039,6 +1039,9 @@ gboolean _dvb_reader_write_packet_full(int fd, const uint8_t *packet)
                 fprintf(stderr, "Could not write to %d.\n", fd);
                 return FALSE;
             }
+            else if (nw == 0) {
+                fprintf(stderr, "Written zero bytes to %d.\n", fd);
+            }
             break;
         }
     }
