@@ -356,6 +356,8 @@ gboolean dvb_recorder_record_start(DVBRecorder *recorder)
     g_free(recorder->record_filename);
     recorder->record_filename = dvb_recorder_make_record_filename(recorder, NULL, NULL);
 
+    /* g_path_get_dirname(), g_mkdir_with_parents */
+
     if (!recorder->record_filename) {
         LOG(recorder, "[lib] Could not generate filename\n");
         return FALSE;

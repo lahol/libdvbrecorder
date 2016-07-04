@@ -1059,7 +1059,7 @@ void _dump_packet(const uint8_t *packet)
 
 void dvb_reader_listener_send_pat(DVBReader *reader, struct DVBReaderListener *listener)
 {
-    LOG(reader->parent_obj, "Send PAT to listener\n");
+    LOG(reader->parent_obj, "Send PAT to listener (%u)\n", reader->pat_packet_count);
     if (reader->pat_packet_count == 0)
         return;
 
