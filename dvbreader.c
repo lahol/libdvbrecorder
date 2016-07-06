@@ -1030,14 +1030,35 @@ void dvb_reader_rewrite_pmt(DVBReader *reader, dvbpsi_pmt_t *pmt)
     dvbpsi_delete(encoder_handle);
 }
 
-gboolean _dvb_reader_write_packet_full(int fd, const uint8_t *packet)
+gint _dvb_reader_write_packet_full(int fd, const uint8_t *packet)
 {
     ssize_t nw, offset;
+    unsigned long int error_enc = 0;
+    struct pollfd pfd[1];
+    int rc;
+    pfd[0].fd = fd;
+    pfd[0].events = POLLOUT;
     for (offset = 0; offset < TS_SIZE; offset += nw) {
+        if ((rc = poll(pfd, 1, 1000)) <= 0) {
+            if (rc == 0) {
+                fprintf(stderr, "Writing to %d timed out.\n", fd);
+                return 0;
+            }
+            if (rc == -1) {
+                fprintf(stderr, "Poll returned an error: %d %s\n", errno, strerror(errno));
+                return -1;
+            }
+        }
         if ((nw = write(fd, packet + offset, (size_t)(TS_SIZE - offset))) <= 0) {
             if (nw < 0) {
+                if (errno == EAGAIN) {
+                    fprintf(stderr, "EAGAIN on fd %d while trying to write %zd bytes.\n", fd, (size_t)(TS_SIZE - offset));
+                    nw = 0;
+                    ++error_enc;
+                    continue;
+                }
                 fprintf(stderr, "Could not write to %d.\n", fd);
-                return FALSE;
+                return -1;
             }
             else if (nw == 0) {
                 fprintf(stderr, "Written zero bytes to %d.\n", fd);
@@ -1046,7 +1067,10 @@ gboolean _dvb_reader_write_packet_full(int fd, const uint8_t *packet)
         }
     }
 
-    return TRUE;
+    if (error_enc)
+        fprintf(stderr, "written successfully after encountering %lu errors.\n", error_enc);
+
+    return 1;
 }
 
 void _dump_packet(const uint8_t *packet)
@@ -1067,12 +1091,13 @@ void dvb_reader_listener_send_pat(DVBReader *reader, struct DVBReaderListener *l
         return;
 
     uint8_t i;
+    gint rc;
     for (i = 0; i < reader->pat_packet_count; ++i) {
         LOG(reader->parent_obj, "PAT[%d]:\n", i);
         _dump_packet(&reader->pat_data[i * TS_SIZE]);
         listener->have_pat = 1;
         if (listener->fd >= 0) {
-            if (!_dvb_reader_write_packet_full(listener->fd, &reader->pat_data[i * TS_SIZE]))
+            if ((rc = _dvb_reader_write_packet_full(listener->fd, &reader->pat_data[i * TS_SIZE])) <= 0)
                 listener->have_pat = 0;
         }
         if (listener->callback) {
@@ -1088,12 +1113,13 @@ void dvb_reader_listener_send_pmt(DVBReader *reader, struct DVBReaderListener *l
         return;
 
     uint8_t i;
+    gint rc;
     for (i = 0; i < reader->pmt_packet_count; ++i) {
         LOG(reader->parent_obj, "PMT[%d]:\n", i);
         _dump_packet(&reader->pmt_data[i * TS_SIZE]);
         listener->have_pmt = 1;
         if (listener->fd >= 0) {
-            if (!_dvb_reader_write_packet_full(listener->fd, &reader->pmt_data[i * TS_SIZE]))
+            if ((rc = _dvb_reader_write_packet_full(listener->fd, &reader->pmt_data[i * TS_SIZE])) <= 0)
                 listener->have_pat = 0;
         }
         if (listener->callback) {
@@ -1141,15 +1167,17 @@ gboolean dvb_reader_write_packet(DVBReader *reader, const uint8_t *packet)
     GList *tmp;
     struct DVBReaderListener *listener;
     DVBFilterType type = dvb_reader_get_active_pid_type(reader, ts_get_pid(packet));
+    gint rc;
 
     g_mutex_lock(&reader->listener_mutex);
     for (tmp = reader->listeners; tmp; tmp = g_list_next(tmp)) {
         listener = (struct DVBReaderListener *)tmp->data;
         if ((listener->filter & (DVB_FILTER_ALL & ~(DVB_FILTER_PAT | DVB_FILTER_PMT))) & type) {
             if (listener->fd >= 0 && !listener->write_error) {
-                if (!_dvb_reader_write_packet_full(listener->fd, packet)) {
-                    listener->write_error = 1;
-                    break;
+                if ((rc = _dvb_reader_write_packet_full(listener->fd, packet)) <= 0) {
+                    if (rc < 0)
+                        listener->write_error = 1;
+                    /* if timeout (rc == 0) -> cache data and write later */
                 }
             }
             if (listener->callback) {
