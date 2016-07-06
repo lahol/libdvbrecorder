@@ -138,6 +138,7 @@ int dvb_recorder_enable_video_source(DVBRecorder *recorder, gboolean enable)
             LOG(recorder, "[lib] pipe failed: (%d) %s\n", errno, strerror(errno));
         }
         LOG(recorder, "[lib] video_pipe: %d/%d, reader: %p\n", recorder->video_pipe[0], recorder->video_pipe[1], recorder->reader);
+        fcntl(recorder->video_pipe[1], F_SETFL, O_NONBLOCK);
         /* for decoding (gstreamer) pat and pmt are necessary */
         dvb_reader_set_listener(recorder->reader,
                 DVB_FILTER_VIDEO | DVB_FILTER_AUDIO | DVB_FILTER_TELETEXT |
@@ -355,6 +356,8 @@ gboolean dvb_recorder_record_start(DVBRecorder *recorder)
 
     g_free(recorder->record_filename);
     recorder->record_filename = dvb_recorder_make_record_filename(recorder, NULL, NULL);
+
+    /* g_path_get_dirname(), g_mkdir_with_parents */
 
     if (!recorder->record_filename) {
         LOG(recorder, "[lib] Could not generate filename\n");
