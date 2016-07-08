@@ -1039,9 +1039,10 @@ gint _dvb_reader_write_packet_full(int fd, const uint8_t *packet)
     pfd[0].fd = fd;
     pfd[0].events = POLLOUT;
     for (offset = 0; offset < TS_SIZE; offset += nw) {
-        if ((rc = poll(pfd, 1, 1000)) <= 0) {
+        if ((rc = poll(pfd, 1, 0)) <= 0) {
             if (rc == 0) {
-                fprintf(stderr, "Writing to %d timed out.\n", fd);
+/*                fprintf(stderr, "Writing to %d timed out.\n", fd);*/
+                /* not writeable */
                 return 0;
             }
             if (rc == -1) {
