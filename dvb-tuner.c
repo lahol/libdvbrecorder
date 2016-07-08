@@ -440,7 +440,7 @@ int dvb_tuner_get_fd(DVBTuner *tuner)
         return tuner->dvr_fd;
     return -1;
 }
-#else
+#else /* DVB_TUNER_DUMMY */
 struct _DVBTuner {
     int fd;
 };

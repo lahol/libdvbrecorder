@@ -703,6 +703,9 @@ gpointer dvb_reader_data_thread_proc(DVBReader *reader)
                 break;
             }
         }
+#ifdef DVB_TUNER_DUMMY
+        usleep(10000);
+#endif
     }
 
 done:
