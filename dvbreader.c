@@ -1224,8 +1224,6 @@ gpointer dvb_reader_listener_thread_proc(struct DVBReaderListener *listener)
 
     while (1) {
         msg = dvb_reader_listener_pop_message(listener);
-        if (listener->fd < 0)
-            fprintf(stderr, "listener %d %p got message\n", listener->fd, listener->callback);
 
         switch (msg->type) {
             case DVB_READER_LISTENER_MESSAGE_DATA:
@@ -1248,6 +1246,7 @@ gpointer dvb_reader_listener_thread_proc(struct DVBReaderListener *listener)
             case DVB_READER_LISTENER_MESSAGE_QUIT:
                 fprintf(stderr, "listener got QUIT message\n");
                 g_free(msg);
+                listener->worker_thread = NULL;
                 if (listener->reader)
                     dvb_recorder_event_send(DVB_RECORDER_EVENT_LISTENER_STATUS_CHANGED,
                             listener->reader->event_cb, listener->reader->event_data,

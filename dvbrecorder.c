@@ -65,6 +65,11 @@ void dvb_recorder_event_callback(DVBRecorderEvent *event, gpointer userdata)
                                 NULL, NULL);
                     }
                 }
+                if (ev->status == DVB_LISTENER_STATUS_TERMINATED) {
+                    fprintf(stderr, "listener terminated, remove it\n");
+                    dvb_reader_remove_listener(recorder->reader, ev->fd_valid ? ev->listener_fd : -1,
+                                                                 ev->cb_valid ? ev->listener_cb : NULL);
+                }
             }
             break;
         default:
