@@ -52,6 +52,21 @@ void dvb_recorder_event_callback(DVBRecorderEvent *event, gpointer userdata)
         case DVB_RECORDER_EVENT_SDT_CHANGED:
             recorder->event_cb(event, recorder->event_data);
             break;
+        case DVB_RECORDER_EVENT_LISTENER_STATUS_CHANGED:
+            {
+                fprintf(stderr, "EVENT_LISTENER_STATUS_CHANGED\n");
+                DVBRecorderEventListenerStatusChanged *ev = (DVBRecorderEventListenerStatusChanged *)event;
+                fprintf(stderr, "status: %d, fd: %d, cb: %p\n", ev->status, ev->listener_fd, ev->listener_cb);
+                if (ev->status == DVB_LISTENER_STATUS_EOS) {
+                    if (ev->fd_valid && ev->listener_fd == recorder->video_pipe[1] && recorder->video_source_enabled) {
+                        dvb_recorder_event_send(DVB_RECORDER_EVENT_STREAM_STATUS_CHANGED,
+                                recorder->event_cb, recorder->event_data,
+                                "status", DVB_STREAM_STATUS_STOPPED,
+                                NULL, NULL);
+                    }
+                }
+            }
+            break;
         default:
             break;
     }
@@ -138,7 +153,7 @@ int dvb_recorder_enable_video_source(DVBRecorder *recorder, gboolean enable)
             LOG(recorder, "[lib] pipe failed: (%d) %s\n", errno, strerror(errno));
         }
         LOG(recorder, "[lib] video_pipe: %d/%d, reader: %p\n", recorder->video_pipe[0], recorder->video_pipe[1], recorder->reader);
-        fcntl(recorder->video_pipe[1], F_SETFL, O_NONBLOCK);
+/*        fcntl(recorder->video_pipe[1], F_SETFL, O_NONBLOCK);*/
         /* for decoding (gstreamer) pat and pmt are necessary */
         dvb_reader_set_listener(recorder->reader,
                 DVB_FILTER_VIDEO | DVB_FILTER_AUDIO | DVB_FILTER_TELETEXT |
@@ -211,11 +226,12 @@ void dvb_recorder_stop(DVBRecorder *recorder)
     dvb_reader_stop(recorder->reader);
 }
 
-void dvb_recorder_record_callback(const guint8 *packet, DVBFilterType type, DVBRecorder *recorder)
+void dvb_recorder_record_callback(const guint8 *data, gsize size, DVBRecorder *recorder)
 {
+    fprintf(stderr, "record callback: %zd\n", size);
     ssize_t nw, offset;
-    for (offset = 0; offset < TS_SIZE; offset += nw) {
-        if ((nw = write(recorder->record_fd, packet + offset, (size_t)(TS_SIZE - offset))) <= 0) {
+    for (offset = 0; offset < size; offset += nw) {
+        if ((nw = write(recorder->record_fd, data + offset, (size_t)(size - offset))) <= 0) {
             if (nw < 0) {
                 LOG(recorder, "[lib] Could not write. Stop recording: %d (%s)\n", errno, strerror(errno));
                 goto err;
@@ -224,7 +240,7 @@ void dvb_recorder_record_callback(const guint8 *packet, DVBFilterType type, DVBR
         }
     }
 
-    recorder->record_size += TS_SIZE;
+    recorder->record_size += size;
 
     return;
 err:
@@ -377,11 +393,10 @@ gboolean dvb_recorder_record_start(DVBRecorder *recorder)
     recorder->record_status = DVB_RECORD_STATUS_RECORDING;
 
     LOG(recorder, "[lib] set listener to record callback\n");
-    /* FIXME: take filter from config */
     dvb_reader_set_listener(recorder->reader, recorder->record_filter, -1,
             (DVBReaderListenerCallback)dvb_recorder_record_callback, recorder);
 
-    LOG(recorder, "[lib] send event aoubt status change\n");
+    LOG(recorder, "[lib] send event about status change\n");
     dvb_recorder_event_send(DVB_RECORDER_EVENT_RECORD_STATUS_CHANGED,
             recorder->event_cb, recorder->event_data,
             "status", DVB_RECORD_STATUS_RECORDING,

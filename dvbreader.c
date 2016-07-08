@@ -82,14 +82,43 @@ struct EITable {
     GList *events;
 };
 
+#define DVB_LISTENER_BUFFER_SIZE 4096
+
 struct DVBReaderListener {
     int fd;
     DVBReaderListenerCallback callback;
     gpointer userdata;
+
+    DVBReader *reader;
+
     DVBFilterType filter;
+
+    guint32 error_count;
+    GQueue message_queue;
+    GCond  message_cond;
+    GMutex message_lock;
+    GThread *worker_thread;
+
+    gsize buffer_size;
+    uint8_t buffer[DVB_LISTENER_BUFFER_SIZE];
+
     guint32 have_pat    : 1;
     guint32 have_pmt    : 1;
     guint32 write_error : 1;
+    guint32 eos         : 1;
+};
+
+enum DVBReaderListenerMessageType {
+    DVB_READER_LISTENER_MESSAGE_DATA,
+    DVB_READER_LISTENER_MESSAGE_DROP,
+    DVB_READER_LISTENER_MESSAGE_QUIT,
+    DVB_READER_LISTENER_MESSAGE_EOS
+};
+
+struct DVBReaderListenerMessage {
+    enum DVBReaderListenerMessageType type;
+    gsize data_size;
+    uint8_t data[DVB_LISTENER_BUFFER_SIZE];
 };
 
 struct DVBPidDescription {
@@ -110,6 +139,15 @@ void dvb_reader_rewrite_pat(DVBReader *reader, uint16_t ts_id, uint16_t program_
 void dvb_reader_rewrite_pmt(DVBReader *reader, dvbpsi_pmt_t *pmt);
 void dvb_reader_listener_send_pat(DVBReader *reader, struct DVBReaderListener *listener);
 void dvb_reader_listener_send_pmt(DVBReader *reader, struct DVBReaderListener *listener);
+gpointer dvb_reader_listener_thread_proc(struct DVBReaderListener *listener);
+void dvb_reader_listener_send_message(struct DVBReaderListener *listener, enum DVBReaderListenerMessageType type, 
+                                      uint8_t *data, gsize size, gboolean immediately);
+void dvb_reader_listener_broadcast_message(DVBReader *reader, enum DVBReaderListenerMessageType type, 
+                                           uint8_t *data, gsize size, gboolean immediately);
+struct DVBReaderListenerMessage *dvb_reader_listener_pop_message(struct DVBReaderListener *listener);
+void dvb_reader_listener_drop_data_messages(struct DVBReaderListener *listener);
+void dvb_reader_listener_push_packet(struct DVBReaderListener *listener, DVBFilterType type, const uint8_t *packet);
+gint dvb_reader_listener_write_data_full(int fd, const uint8_t *data, gsize size);
 
 void dvb_reader_dvbpsi_message(dvbpsi_t *handle, const dvbpsi_msg_level_t level, const char *msg);
 void dvb_reader_dvbpsi_pat_cb(DVBReader *reader, dvbpsi_pat_t *pat);
@@ -352,8 +390,14 @@ void dvb_reader_set_listener(DVBReader *reader, DVBFilterType filter, int fd,
         listener->callback = callback;
         listener->userdata = userdata;
         listener->filter = filter;
+        listener->reader = reader;
+        g_queue_init(&listener->message_queue);
+        g_mutex_init(&listener->message_lock);
+        g_cond_init(&listener->message_cond);
 
         reader->listeners = g_list_prepend(reader->listeners, listener);
+
+        listener->worker_thread = g_thread_new("Listener", (GThreadFunc)dvb_reader_listener_thread_proc, listener);
     }
 
     dvb_reader_listener_send_pat(reader, listener);
@@ -378,6 +422,13 @@ void dvb_reader_remove_listener(DVBReader *reader, int fd, DVBReaderListenerCall
 
     if (element) {
         reader->listeners = g_list_remove_link(reader->listeners, element);
+        struct DVBReaderListener *listener = (struct DVBReaderListener *)element->data;
+        if (listener->worker_thread) {
+            dvb_reader_listener_send_message(listener, DVB_READER_LISTENER_MESSAGE_QUIT, NULL, 0, TRUE);
+            g_thread_join(listener->worker_thread);
+        }
+        g_queue_free_full(&listener->message_queue, (GDestroyNotify)g_free);
+
         g_free(element->data);
         g_list_free_1(element);
     }
@@ -660,9 +711,11 @@ done:
     reader->data_thread = NULL;
 
     LOG(reader->parent_obj, "[lib] Stream stopped\n");
+    dvb_reader_listener_broadcast_message(reader, DVB_READER_LISTENER_MESSAGE_EOS, NULL, 0, FALSE);
+
     dvb_recorder_event_send(DVB_RECORDER_EVENT_STREAM_STATUS_CHANGED,
             reader->event_cb, reader->event_data,
-            "status", DVB_STREAM_STATUS_STOPPED,
+            "status", DVB_STREAM_STATUS_EOS,
             NULL, NULL);
 
     return NULL;
@@ -1030,7 +1083,92 @@ void dvb_reader_rewrite_pmt(DVBReader *reader, dvbpsi_pmt_t *pmt)
     dvbpsi_delete(encoder_handle);
 }
 
-gint _dvb_reader_write_packet_full(int fd, const uint8_t *packet)
+void dvb_reader_listener_send_message(struct DVBReaderListener *listener, enum DVBReaderListenerMessageType type, 
+                                      uint8_t *data, gsize size, gboolean immediately)
+{
+    struct DVBReaderListenerMessage *msg = g_malloc(sizeof(struct DVBReaderListenerMessage));
+
+    msg->type = type;
+    msg->data_size = size;
+    if (size > 0)
+        memcpy(msg->data, data, size);
+
+    g_mutex_lock(&listener->message_lock);
+
+    if (immediately)
+        g_queue_push_head(&listener->message_queue, msg);
+    else
+        g_queue_push_tail(&listener->message_queue, msg);
+
+    g_cond_signal(&listener->message_cond);
+
+    g_mutex_unlock(&listener->message_lock);
+}
+
+void dvb_reader_listener_broadcast_message(DVBReader *reader, enum DVBReaderListenerMessageType type, 
+                                           uint8_t *data, gsize size, gboolean immediately)
+{
+    GList *tmp;
+
+    g_mutex_lock(&reader->listener_mutex);
+    for (tmp = reader->listeners; tmp; tmp = g_list_next(tmp)) {
+        dvb_reader_listener_send_message((struct DVBReaderListener *)tmp->data, type, data, size, immediately);
+    }
+    g_mutex_unlock(&reader->listener_mutex);
+}
+
+struct DVBReaderListenerMessage *dvb_reader_listener_pop_message(struct DVBReaderListener *listener)
+{
+    struct DVBReaderListenerMessage *msg;
+
+    g_mutex_lock(&listener->message_lock);
+
+    while ((msg = (struct DVBReaderListenerMessage *)g_queue_pop_head(&listener->message_queue)) == NULL)
+        g_cond_wait(&listener->message_cond, &listener->message_lock);
+
+    g_mutex_unlock(&listener->message_lock);
+
+    return msg;
+}
+
+void dvb_reader_listener_drop_data_messages(struct DVBReaderListener *listener)
+{
+    GList *tmp, *next;
+
+    g_mutex_lock(&listener->message_lock);
+
+    tmp = listener->message_queue.head;
+    while (tmp) {
+        next = tmp->next;
+        if (((struct DVBReaderListenerMessage *)tmp->data)->type == DVB_READER_LISTENER_MESSAGE_DATA) {
+            g_free(tmp->data);
+            g_queue_delete_link(&listener->message_queue, tmp);
+        }
+        tmp = next;
+    }
+
+    g_mutex_unlock(&listener->message_lock);
+}
+
+/* Write packet to internal listener buffer if filter matches. When the buffer is full create a new DATA message,
+ * send it, and clear the buffer. */
+void dvb_reader_listener_push_packet(struct DVBReaderListener *listener, DVBFilterType type, const uint8_t *packet)
+{
+    if (((listener->filter & (DVB_FILTER_ALL & ~(DVB_FILTER_PAT | DVB_FILTER_PMT))) & type) ||
+        (type == DVB_FILTER_PAT && (listener->filter & DVB_FILTER_PAT) && listener->have_pat == 0) || 
+        (type == DVB_FILTER_PMT && (listener->filter & DVB_FILTER_PMT) && listener->have_pmt == 0)) {
+        memcpy(&listener->buffer[listener->buffer_size], packet, TS_SIZE);
+        listener->buffer_size += TS_SIZE;
+    }
+
+    if (listener->buffer_size >= (DVB_LISTENER_BUFFER_SIZE / TS_SIZE) * TS_SIZE) {
+        dvb_reader_listener_send_message(listener, DVB_READER_LISTENER_MESSAGE_DATA,
+                                         listener->buffer, listener->buffer_size, FALSE);
+        listener->buffer_size = 0;
+    }
+}
+
+gint dvb_reader_listener_write_data_full(int fd, const uint8_t *data, gsize size)
 {
     ssize_t nw, offset;
     unsigned long int error_enc = 0;
@@ -1038,21 +1176,22 @@ gint _dvb_reader_write_packet_full(int fd, const uint8_t *packet)
     int rc;
     pfd[0].fd = fd;
     pfd[0].events = POLLOUT;
-    for (offset = 0; offset < TS_SIZE; offset += nw) {
+    for (offset = 0; offset < size; offset += nw) {
         if ((rc = poll(pfd, 1, 1000)) <= 0) {
             if (rc == 0) {
                 fprintf(stderr, "Writing to %d timed out.\n", fd);
-                return 0;
+                ++error_enc;
+                continue;
             }
             if (rc == -1) {
                 fprintf(stderr, "Poll returned an error: %d %s\n", errno, strerror(errno));
                 return -1;
             }
         }
-        if ((nw = write(fd, packet + offset, (size_t)(TS_SIZE - offset))) <= 0) {
+        if ((nw = write(fd, data + offset, (size_t)(size - offset))) <= 0) {
             if (nw < 0) {
                 if (errno == EAGAIN) {
-                    fprintf(stderr, "EAGAIN on fd %d while trying to write %zd bytes.\n", fd, (size_t)(TS_SIZE - offset));
+                    fprintf(stderr, "EAGAIN on fd %d while trying to write %zd bytes.\n", fd, (size_t)(size - offset));
                     nw = 0;
                     ++error_enc;
                     continue;
@@ -1073,6 +1212,67 @@ gint _dvb_reader_write_packet_full(int fd, const uint8_t *packet)
     return 1;
 }
 
+gpointer dvb_reader_listener_thread_proc(struct DVBReaderListener *listener)
+{
+    struct DVBReaderListenerMessage *msg;
+    gint rc;
+
+    fprintf(stderr, "dvb_reader_listener_thread_proc for %d, %p\n", listener->fd, listener->callback);
+
+    while (1) {
+        msg = dvb_reader_listener_pop_message(listener);
+        if (listener->fd < 0)
+            fprintf(stderr, "listener %d %p got message\n", listener->fd, listener->callback);
+
+        switch (msg->type) {
+            case DVB_READER_LISTENER_MESSAGE_DATA:
+                if (listener->fd >= 0 && !listener->write_error) {
+                    if ((rc = dvb_reader_listener_write_data_full(listener->fd, msg->data, msg->data_size)) <= 0) {
+                        if (rc < 0)
+                            listener->write_error = 1;
+                    }
+                }
+                if (listener->fd < 0)
+                    fprintf(stderr, "write data to %p\n", listener->callback);
+                if (listener->callback) {
+                    listener->callback(msg->data, msg->data_size, listener->userdata);
+                }
+                break;
+            case DVB_READER_LISTENER_MESSAGE_DROP:
+                fprintf(stderr, "listener got DROP message\n");
+                dvb_reader_listener_drop_data_messages(listener);
+                break;
+            case DVB_READER_LISTENER_MESSAGE_QUIT:
+                fprintf(stderr, "listener got QUIT message\n");
+                g_free(msg);
+                if (listener->reader)
+                    dvb_recorder_event_send(DVB_RECORDER_EVENT_LISTENER_STATUS_CHANGED,
+                            listener->reader->event_cb, listener->reader->event_data,
+                            "status", DVB_LISTENER_STATUS_TERMINATED,
+                            "fd", listener->fd,
+                            "cb", listener->callback,
+                            NULL, NULL);
+                return NULL;
+            case DVB_READER_LISTENER_MESSAGE_EOS:
+                fprintf(stderr, "listener got EOS message\n");
+                listener->eos = 1;
+                if (listener->reader)
+                    dvb_recorder_event_send(DVB_RECORDER_EVENT_LISTENER_STATUS_CHANGED,
+                            listener->reader->event_cb, listener->reader->event_data,
+                            "status", DVB_LISTENER_STATUS_EOS,
+                            "fd", listener->fd,
+                            "cb", listener->callback,
+                            NULL, NULL);
+                break;
+        }
+
+        g_free(msg);
+    }
+
+    fprintf(stderr, "listener: %d %p reached the unreachable\n", listener->fd, listener->callback);
+    return NULL;
+}
+
 void _dump_packet(const uint8_t *packet)
 {
     uint16_t i;
@@ -1091,19 +1291,12 @@ void dvb_reader_listener_send_pat(DVBReader *reader, struct DVBReaderListener *l
         return;
 
     uint8_t i;
-    gint rc;
     for (i = 0; i < reader->pat_packet_count; ++i) {
         LOG(reader->parent_obj, "PAT[%d]:\n", i);
         _dump_packet(&reader->pat_data[i * TS_SIZE]);
-        listener->have_pat = 1;
-        if (listener->fd >= 0) {
-            if ((rc = _dvb_reader_write_packet_full(listener->fd, &reader->pat_data[i * TS_SIZE])) <= 0)
-                listener->have_pat = 0;
-        }
-        if (listener->callback) {
-            listener->callback(&reader->pat_data[i * TS_SIZE], DVB_FILTER_PAT, listener->userdata);
-        }
+        dvb_reader_listener_push_packet(listener, DVB_FILTER_PAT, &reader->pat_data[i * TS_SIZE]);
     }
+    listener->have_pat = 1;
 }
 
 void dvb_reader_listener_send_pmt(DVBReader *reader, struct DVBReaderListener *listener)
@@ -1113,19 +1306,12 @@ void dvb_reader_listener_send_pmt(DVBReader *reader, struct DVBReaderListener *l
         return;
 
     uint8_t i;
-    gint rc;
     for (i = 0; i < reader->pmt_packet_count; ++i) {
         LOG(reader->parent_obj, "PMT[%d]:\n", i);
         _dump_packet(&reader->pmt_data[i * TS_SIZE]);
-        listener->have_pmt = 1;
-        if (listener->fd >= 0) {
-            if ((rc = _dvb_reader_write_packet_full(listener->fd, &reader->pmt_data[i * TS_SIZE])) <= 0)
-                listener->have_pat = 0;
-        }
-        if (listener->callback) {
-            listener->callback(&reader->pmt_data[i * TS_SIZE], DVB_FILTER_PMT, listener->userdata);
-        }
+        dvb_reader_listener_push_packet(listener, DVB_FILTER_PMT, &reader->pmt_data[i * TS_SIZE]); 
     }
+    listener->have_pmt = 1;
 }
 
 gboolean dvb_reader_get_current_pat_packets(DVBReader *reader, guint8 **buffer, gsize *length)
@@ -1167,30 +1353,11 @@ gboolean dvb_reader_write_packet(DVBReader *reader, const uint8_t *packet)
     GList *tmp;
     struct DVBReaderListener *listener;
     DVBFilterType type = dvb_reader_get_active_pid_type(reader, ts_get_pid(packet));
-    gint rc;
 
     g_mutex_lock(&reader->listener_mutex);
     for (tmp = reader->listeners; tmp; tmp = g_list_next(tmp)) {
         listener = (struct DVBReaderListener *)tmp->data;
-        if ((listener->filter & (DVB_FILTER_ALL & ~(DVB_FILTER_PAT | DVB_FILTER_PMT))) & type) {
-            if (listener->fd >= 0 && !listener->write_error) {
-                if ((rc = _dvb_reader_write_packet_full(listener->fd, packet)) <= 0) {
-                    if (rc < 0)
-                        listener->write_error = 1;
-                    /* if timeout (rc == 0) -> cache data and write later */
-                }
-            }
-            if (listener->callback) {
-                listener->callback(packet, type, listener->userdata);
-            }
-        }
-        else if (type == DVB_FILTER_PAT && (listener->filter & DVB_FILTER_PAT) && listener->have_pat == 0) {
-            dvb_reader_listener_send_pat(reader, listener);
-        }
-        else if (type == DVB_FILTER_PMT && (listener->filter & DVB_FILTER_PMT) && listener->have_pmt == 0
-                 /*&& (((listener->filter & DVB_FILTER_PAT) && listener->have_pat) || !(listener->filter & DVB_FILTER_PAT))*/) {
-            dvb_reader_listener_send_pmt(reader, listener);
-        }
+        dvb_reader_listener_push_packet(listener, type, packet);
     }
     g_mutex_unlock(&reader->listener_mutex);
     return TRUE;

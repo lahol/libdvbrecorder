@@ -11,6 +11,7 @@ typedef enum {
     DVB_RECORDER_EVENT_RECORD_STATUS_CHANGED,
     DVB_RECORDER_EVENT_EIT_CHANGED,
     DVB_RECORDER_EVENT_SDT_CHANGED,
+    DVB_RECORDER_EVENT_LISTENER_STATUS_CHANGED,
     DVB_RECORDER_EVENT_COUNT
 } DVBRecorderEventType;
 
@@ -19,7 +20,8 @@ typedef enum {
     DVB_STREAM_STATUS_TUNED,
     DVB_STREAM_STATUS_TUNE_FAILED,
     DVB_STREAM_STATUS_RUNNING,
-    DVB_STREAM_STATUS_STOPPED
+    DVB_STREAM_STATUS_STOPPED,
+    DVB_STREAM_STATUS_EOS
 } DVBStreamStatus;
 
 typedef enum {
@@ -27,6 +29,12 @@ typedef enum {
     DVB_RECORD_STATUS_RECORDING,
     DVB_RECORD_STATUS_STOPPED
 } DVBRecordStatus;
+
+typedef enum {
+    DVB_LISTENER_STATUS_UNKNOWN = 0,
+    DVB_LISTENER_STATUS_EOS,
+    DVB_LISTENER_STATUS_TERMINATED
+} DVBListenerStatus;
 
 typedef struct {
     DVBRecorderEventType type;
@@ -75,6 +83,17 @@ typedef struct {
 typedef struct {
     DVBRecorderEvent parent;
 } DVBRecorderEventSDTChanged;
+
+typedef struct {
+    DVBRecorderEvent parent;
+
+    guint status;
+    gint listener_fd;
+    gpointer listener_cb;
+
+    guint fd_valid : 1;
+    guint cb_valid : 1;
+} DVBRecorderEventListenerStatusChanged;
 
 typedef void (*DVBRecorderEventCallback)(DVBRecorderEvent *, gpointer);
 void dvb_recorder_event_send(DVBRecorderEventType type, DVBRecorderEventCallback cb, gpointer data, ...);

@@ -11,8 +11,8 @@ typedef struct _DVBReader DVBReader;
 DVBReader *dvb_reader_new(DVBRecorderEventCallback cb, gpointer userdata);
 void dvb_reader_destroy(DVBReader *reader);
 
-/* packet [188], type, userdata */
-typedef void (*DVBReaderListenerCallback)(const guint8 *, DVBFilterType, gpointer);
+/* data, size, userdata */
+typedef void (*DVBReaderListenerCallback)(const guint8 *, gsize, gpointer);
 
 void dvb_reader_set_listener(DVBReader *reader, DVBFilterType filter, int fd,
                              DVBReaderListenerCallback callback, gpointer userdata);
