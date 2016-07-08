@@ -994,6 +994,8 @@ void dvb_reader_dvbpsi_section_to_ts_packets(uint16_t pid, dvbpsi_psi_section_t 
 
     if (packets)
         *packets = buffer;
+    else
+        g_free(buffer);
     if (packet_count)
         *packet_count = count;
 }
