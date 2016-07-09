@@ -428,6 +428,7 @@ gboolean dvb_recorder_record_start(DVBRecorder *recorder)
     LOG(recorder, "[lib] set listener to record callback\n");
     dvb_reader_set_listener(recorder->reader, recorder->record_filter, -1,
             (DVBReaderListenerCallback)dvb_recorder_record_callback, recorder);
+    dvb_reader_listener_set_running(recorder->reader, -1, (DVBReaderListenerCallback)dvb_recorder_record_callback, TRUE);
 
     LOG(recorder, "[lib] send event about status change\n");
     dvb_recorder_event_send(DVB_RECORDER_EVENT_RECORD_STATUS_CHANGED,
