@@ -420,12 +420,23 @@ void dvb_reader_remove_listener(DVBReader *reader, int fd, DVBReaderListenerCall
     else
         element = g_list_find_custom(reader->listeners, GINT_TO_POINTER(fd), (GCompareFunc)dvb_reader_compare_listener_fd);
 
+    LOG(reader->parent_obj, "found reader: %p\n", element ? element->data : NULL);
+
     if (element) {
         reader->listeners = g_list_remove_link(reader->listeners, element);
+        g_mutex_unlock(&reader->listener_mutex);
+    }
+    else {
+        g_mutex_unlock(&reader->listener_mutex);
+    }
+
+    if (element) {
         struct DVBReaderListener *listener = (struct DVBReaderListener *)element->data;
         if (listener->worker_thread) {
             dvb_reader_listener_send_message(listener, DVB_READER_LISTENER_MESSAGE_QUIT, NULL, 0, TRUE);
+            fprintf(stderr, "join worker thread for %d %p\n", listener->fd, listener->callback);
             g_thread_join(listener->worker_thread);
+            fprintf(stderr, "joined worker thread for %d %p\n", listener->fd, listener->callback);
         }
         g_queue_free_full(&listener->message_queue, (GDestroyNotify)g_free);
 
@@ -433,7 +444,6 @@ void dvb_reader_remove_listener(DVBReader *reader, int fd, DVBReaderListenerCall
         g_list_free_1(element);
     }
 
-    g_mutex_unlock(&reader->listener_mutex);
 }
 
 void dvb_reader_tune(DVBReader *reader,
@@ -1254,6 +1264,7 @@ gpointer dvb_reader_listener_thread_proc(struct DVBReaderListener *listener)
                             "fd", listener->fd,
                             "cb", listener->callback,
                             NULL, NULL);
+                fprintf(stderr, "return from QUIT\n");
                 return NULL;
             case DVB_READER_LISTENER_MESSAGE_EOS:
                 fprintf(stderr, "listener got EOS message\n");

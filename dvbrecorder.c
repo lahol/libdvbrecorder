@@ -43,6 +43,7 @@ struct _DVBRecorder {
 
 void dvb_recorder_event_callback(DVBRecorderEvent *event, gpointer userdata)
 {
+    FLOG("\n");
     DVBRecorder *recorder = (DVBRecorder *)userdata;
     if (!recorder || !recorder->event_cb)
         return;
@@ -79,6 +80,7 @@ void dvb_recorder_event_callback(DVBRecorderEvent *event, gpointer userdata)
 
 DVBRecorder *dvb_recorder_new(DVBRecorderEventCallback cb, gpointer userdata)
 {
+    FLOG("\n");
     DVBRecorder *recorder = g_malloc0(sizeof(DVBRecorder));
 
     recorder->event_cb = cb;
@@ -107,6 +109,7 @@ err:
 
 void dvb_recorder_destroy(DVBRecorder *recorder)
 {
+    FLOG("\n");
     LOG(recorder, "dvb_recorder_destroy\n");
     if (!recorder)
         return;
@@ -127,6 +130,7 @@ void dvb_recorder_destroy(DVBRecorder *recorder)
 
 void dvb_recorder_set_logger(DVBRecorder *recorder, DVBRecorderLoggerProc logger, gpointer userdata)
 {
+    FLOG("\n");
     g_return_if_fail(recorder != NULL);
 
     recorder->logger = logger;
@@ -135,6 +139,7 @@ void dvb_recorder_set_logger(DVBRecorder *recorder, DVBRecorderLoggerProc logger
 
 gboolean dvb_recorder_get_logger(DVBRecorder *recorder, DVBRecorderLoggerProc *logger, gpointer *userdata)
 {
+    FLOG("\n");
     g_return_val_if_fail(recorder != NULL, FALSE);
 
     if (logger)
@@ -147,6 +152,7 @@ gboolean dvb_recorder_get_logger(DVBRecorder *recorder, DVBRecorderLoggerProc *l
 
 int dvb_recorder_enable_video_source(DVBRecorder *recorder, gboolean enable)
 {
+    FLOG("\n");
     g_return_val_if_fail(recorder != NULL, -1);
 
     if (recorder->video_source_enabled == enable)
@@ -183,11 +189,13 @@ int dvb_recorder_enable_video_source(DVBRecorder *recorder, gboolean enable)
 
 GList *dvb_recorder_get_channel_list(DVBRecorder *recorder)
 {
+    FLOG("\n");
     return NULL;
 }
 
 gboolean dvb_recorder_set_channel(DVBRecorder *recorder, guint64 channel_id)
 {
+    FLOG("\n");
     g_return_val_if_fail(recorder != NULL, FALSE);
 
     LOG(recorder, "[lib] dvb_recorder_set_channel %lu -> %lu\n", recorder->current_channel_id, channel_id);
@@ -223,6 +231,7 @@ gboolean dvb_recorder_set_channel(DVBRecorder *recorder, guint64 channel_id)
 
 void dvb_recorder_stop(DVBRecorder *recorder)
 {
+    FLOG("\n");
     g_return_if_fail(recorder != NULL);
 
     if (recorder->record_status == DVB_RECORD_STATUS_RECORDING)
@@ -233,6 +242,7 @@ void dvb_recorder_stop(DVBRecorder *recorder)
 
 void dvb_recorder_record_callback(const guint8 *data, gsize size, DVBRecorder *recorder)
 {
+    FLOG("\n");
     fprintf(stderr, "record callback: %zd\n", size);
     ssize_t nw, offset;
     for (offset = 0; offset < size; offset += nw) {
@@ -254,6 +264,7 @@ err:
 
 void dvb_recorder_set_record_filename_pattern(DVBRecorder *recorder, const gchar *pattern)
 {
+    FLOG("\n");
     g_return_if_fail(recorder != NULL);
 
     g_free(recorder->record_filename_pattern);
@@ -262,10 +273,12 @@ void dvb_recorder_set_record_filename_pattern(DVBRecorder *recorder, const gchar
 
 void dvb_recorder_set_snapshot_filename_pattern(DVBRecorder *recorder, const gchar *pattern)
 {
+    FLOG("\n");
 }
 
 void dvb_recorder_set_capture_dir(DVBRecorder *recorder, const gchar *capture_dir)
 {
+    FLOG("\n");
     g_return_if_fail(recorder != NULL);
 
     g_free(recorder->capture_dir);
@@ -279,6 +292,7 @@ struct _pattern_match_info {
 
 static gboolean dvb_recorder_filename_pattern_eval(const GMatchInfo *matchinfo, GString *res, struct _pattern_match_info *info)
 {
+    FLOG("\n");
     gchar *match = g_match_info_fetch(matchinfo, 0);
 
     GRegex *fn_regex = g_regex_new("/", 0, 0, NULL);
@@ -328,6 +342,7 @@ static gboolean dvb_recorder_filename_pattern_eval(const GMatchInfo *matchinfo, 
 
 gchar *dvb_recorder_make_record_filename(DVBRecorder *recorder, const gchar *alternate_dir, const gchar *alternate_pattern)
 {
+    FLOG("\n");
     struct _pattern_match_info info;
     info.stream_info = dvb_reader_get_stream_info(recorder->reader);
     time_t t;
@@ -358,6 +373,7 @@ gchar *dvb_recorder_make_record_filename(DVBRecorder *recorder, const gchar *alt
 
 gboolean dvb_recorder_record_start(DVBRecorder *recorder)
 {
+    FLOG("\n");
     g_return_val_if_fail(recorder != NULL, FALSE);
 
     LOG(recorder, "[lib] dvb_recorder_record_start\n");
@@ -414,6 +430,7 @@ gboolean dvb_recorder_record_start(DVBRecorder *recorder)
 
 void dvb_recorder_record_stop(DVBRecorder *recorder)
 {
+    FLOG("\n");
     g_return_if_fail(recorder != NULL);
 
     dvb_reader_remove_listener(recorder->reader, -1, (DVBReaderListenerCallback)dvb_recorder_record_callback);
@@ -433,6 +450,7 @@ void dvb_recorder_record_stop(DVBRecorder *recorder)
 
 void dvb_recorder_query_record_status(DVBRecorder *recorder, DVBRecorderRecordStatus *status)
 {
+    FLOG("\n");
     g_return_if_fail(recorder != NULL);
     g_return_if_fail(status != NULL);
 
@@ -450,6 +468,7 @@ void dvb_recorder_query_record_status(DVBRecorder *recorder, DVBRecorderRecordSt
 
 GList *dvb_recorder_get_epg(DVBRecorder *recorder)
 {
+    FLOG("\n");
     g_return_val_if_fail(recorder != NULL, NULL);
 
     return dvb_reader_get_events(recorder->reader);
@@ -457,6 +476,7 @@ GList *dvb_recorder_get_epg(DVBRecorder *recorder)
 
 EPGEvent *dvb_recorder_get_epg_event(DVBRecorder *recorder, guint16 event_id)
 {
+    FLOG("\n");
     g_return_val_if_fail(recorder != NULL, NULL);
 
     return dvb_reader_get_event(recorder->reader, event_id);
@@ -464,6 +484,7 @@ EPGEvent *dvb_recorder_get_epg_event(DVBRecorder *recorder, guint16 event_id)
 
 DVBStreamInfo *dvb_recorder_get_stream_info(DVBRecorder *recorder)
 {
+    FLOG("\n");
     g_return_val_if_fail(recorder != NULL, NULL);
 
     return dvb_reader_get_stream_info(recorder->reader);
@@ -471,6 +492,7 @@ DVBStreamInfo *dvb_recorder_get_stream_info(DVBRecorder *recorder)
 
 DVBStreamStatus dvb_recorder_get_stream_status(DVBRecorder *recorder)
 {
+    FLOG("\n");
     g_return_val_if_fail(recorder != NULL, DVB_STREAM_STATUS_UNKNOWN);
 
     return dvb_reader_get_stream_status(recorder->reader);
@@ -478,6 +500,7 @@ DVBStreamStatus dvb_recorder_get_stream_status(DVBRecorder *recorder)
 
 void dvb_recorder_set_record_filter(DVBRecorder *recorder, DVBFilterType filter)
 {
+    FLOG("\n");
     g_return_if_fail(recorder != NULL);
 
     recorder->record_filter = filter;
@@ -485,6 +508,7 @@ void dvb_recorder_set_record_filter(DVBRecorder *recorder, DVBFilterType filter)
 
 DVBFilterType dvb_recorder_get_record_filter(DVBRecorder *recorder)
 {
+    FLOG("\n");
     g_return_val_if_fail(recorder != NULL, 0);
 
     return recorder->record_filter;
