@@ -37,3 +37,6 @@ void dvb_reader_stop(DVBReader *reader);
 
 GList *dvb_reader_get_events(DVBReader *reader); /* new list containing reference of all events */
 EPGEvent *dvb_reader_get_event(DVBReader *reader, guint16 eventid); /* [no transfer] */
+
+float dvb_reader_query_signal_strength(DVBReader *reader);
+

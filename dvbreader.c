@@ -1470,3 +1470,9 @@ done:
     return dvb_reader_write_packet(reader, packet);
 }
 
+float dvb_reader_query_signal_strength(DVBReader *reader)
+{
+    if (reader)
+        return dvb_tuner_get_signal_strength(reader->tuner);
+    return -1.0f;
+}

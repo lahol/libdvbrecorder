@@ -440,6 +440,18 @@ int dvb_tuner_get_fd(DVBTuner *tuner)
         return tuner->dvr_fd;
     return -1;
 }
+
+float dvb_tuner_get_signal_strength(DVBTuner *tuner)
+{
+    if (!tuner || tuner->frontend_fd < 0)
+        return -1.0f;
+    int64_t strength;
+    if (ioctl(tuner->frontend_fd, FE_READ_SIGNAL_STRENGTH, &strength) < 0) {
+        return -1.0f;
+    }
+    return (float)(strength/65535.0f);
+}
+
 #else /* DVB_TUNER_DUMMY */
 struct _DVBTuner {
     int fd;
@@ -509,6 +521,11 @@ int dvb_tuner_get_fd(DVBTuner *tuner)
     if (tuner == NULL)
         return -1;
     return tuner->fd;
+}
+
+float dvb_tuner_get_signal_strength(DVBTuner *tuner)
+{
+    return -1.0f;
 }
 
 #endif

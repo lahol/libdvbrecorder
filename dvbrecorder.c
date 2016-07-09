@@ -511,3 +511,10 @@ DVBFilterType dvb_recorder_get_record_filter(DVBRecorder *recorder)
     return recorder->record_filter;
 }
 
+float dvb_recorder_get_signal_strength(DVBRecorder *recorder)
+{
+    if (recorder)
+        return dvb_reader_query_signal_strength(recorder->reader);
+    return -1.0f;
+}
+

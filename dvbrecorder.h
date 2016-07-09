@@ -58,3 +58,5 @@ DVBStreamStatus dvb_recorder_get_stream_status(DVBRecorder *recorder);
 
 void dvb_recorder_set_record_filter(DVBRecorder *recorder, DVBFilterType filter);
 DVBFilterType dvb_recorder_get_record_filter(DVBRecorder *recorder);
+
+float dvb_recorder_get_signal_strength(DVBRecorder *recorder);
