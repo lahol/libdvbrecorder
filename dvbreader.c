@@ -401,6 +401,11 @@ void dvb_reader_set_listener(DVBReader *reader, DVBFilterType filter, int fd,
         g_mutex_lock(&listener->message_lock);
         g_queue_foreach(&listener->message_queue, (GFunc)g_free, NULL);
         g_queue_clear(&listener->message_queue);
+        listener->terminate = 0;
+        listener->write_error = 0;
+        listener->eos = 0;
+        listener->have_pat = 0;
+        listener->have_pmt = 0;
         g_mutex_unlock(&listener->message_lock);
         listener->filter = filter;
         listener->userdata = userdata;
@@ -1313,8 +1318,18 @@ gpointer dvb_reader_listener_thread_proc(struct DVBReaderListener *listener)
             case DVB_READER_LISTENER_MESSAGE_DATA:
                 if (listener->fd >= 0 && !listener->write_error) {
                     if ((rc = dvb_reader_listener_write_data_full(listener, msg->data, msg->data_size)) <= 0) {
-                        if (rc < 0)
+                        if (rc < 0) {
                             listener->write_error = 1;
+                            if (listener->reader) {
+                                fprintf(stderr, "signal write error\n");
+                                dvb_recorder_event_send(DVB_RECORDER_EVENT_LISTENER_STATUS_CHANGED,
+                                        listener->reader->event_cb, listener->reader->event_data,
+                                        "status", DVB_LISTENER_STATUS_WRITE_ERROR,
+                                        "fd", listener->fd,
+                                        "cb", listener->callback,
+                                        NULL, NULL);
+                            }
+                        }
                     }
                 }
                 if (listener->callback) {

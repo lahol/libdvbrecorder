@@ -45,6 +45,8 @@ static struct DREventClass event_classes[] = {
         NULL, NULL },
     { DVB_RECORDER_EVENT_LISTENER_STATUS_CHANGED, sizeof(DVBRecorderEventListenerStatusChanged),
         dvb_recorder_event_listener_status_changed_set_property, NULL },
+    { DVB_RECORDER_EVENT_VIDEO_DIED, sizeof(DVBRecorderEventVideoDied),
+        NULL, NULL },
 };
 
 struct DREventClass *dvb_recorder_event_get_class(DVBRecorderEventType type)

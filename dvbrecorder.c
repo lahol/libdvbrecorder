@@ -66,10 +66,18 @@ void dvb_recorder_event_callback(DVBRecorderEvent *event, gpointer userdata)
                                 NULL, NULL);
                     }
                 }
-                if (ev->status == DVB_LISTENER_STATUS_TERMINATED) {
+                else if (ev->status == DVB_LISTENER_STATUS_TERMINATED) {
                     fprintf(stderr, "listener terminated, remove it\n");
                     dvb_reader_remove_listener(recorder->reader, ev->fd_valid ? ev->listener_fd : -1,
                                                                  ev->cb_valid ? ev->listener_cb : NULL);
+                }
+                else if (ev->status == DVB_LISTENER_STATUS_WRITE_ERROR) {
+                    if (ev->fd_valid && ev->listener_fd == recorder->video_pipe[1] && recorder->video_source_enabled) {
+                        fprintf(stderr, "video write error\n");
+                        dvb_recorder_event_send(DVB_RECORDER_EVENT_VIDEO_DIED,
+                                recorder->event_cb, recorder->event_data,
+                                NULL, NULL);
+                    }
                 }
             }
             break;
