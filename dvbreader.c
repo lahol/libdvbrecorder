@@ -148,6 +148,7 @@ struct DVBReaderListenerMessage *dvb_reader_listener_pop_message(struct DVBReade
 void dvb_reader_listener_drop_data_messages(struct DVBReaderListener *listener);
 void dvb_reader_listener_push_packet(struct DVBReaderListener *listener, DVBFilterType type, const uint8_t *packet);
 gint dvb_reader_listener_write_data_full(int fd, const uint8_t *data, gsize size);
+void dvb_reader_listener_clear_queue(struct DVBReaderListener *listener);
 void dvb_reader_listener_free(struct DVBReaderListener *listener);
 
 void dvb_reader_dvbpsi_message(dvbpsi_t *handle, const dvbpsi_msg_level_t level, const char *msg);
@@ -287,6 +288,7 @@ void dvb_reader_reset(DVBReader *reader)
     for (tmp = reader->listeners; tmp; tmp = g_list_next(tmp)) {
         listener = (struct DVBReaderListener *)tmp->data;
         if (listener) {
+            dvb_reader_listener_clear_queue(listener);
             listener->have_pat = 0;
             listener->have_pmt = 0;
         }
@@ -378,6 +380,7 @@ void dvb_reader_set_listener(DVBReader *reader, DVBFilterType filter, int fd,
                              DVBReaderListenerCallback callback, gpointer userdata)
 {
     FLOG("\n");
+    fprintf(stderr, "dvb_reader_set_listener\n");
     g_return_if_fail(reader != NULL);
 
     LOG(reader->parent_obj, "[lib] set listener %d (%p), mutex: %p\n", fd, callback, &reader->listener_mutex);
@@ -394,6 +397,10 @@ void dvb_reader_set_listener(DVBReader *reader, DVBFilterType filter, int fd,
 
     if (element) {
         listener = (struct DVBReaderListener *)element->data;
+        g_mutex_lock(&listener->message_lock);
+        g_queue_foreach(&listener->message_queue, (GFunc)g_free, NULL);
+        g_queue_clear(&listener->message_queue);
+        g_mutex_unlock(&listener->message_lock);
         listener->filter = filter;
         listener->userdata = userdata;
     }
@@ -420,17 +427,28 @@ void dvb_reader_set_listener(DVBReader *reader, DVBFilterType filter, int fd,
     g_mutex_unlock(&reader->listener_mutex);
 }
 
+void dvb_reader_listener_clear_queue(struct DVBReaderListener *listener)
+{
+    if (!listener)
+        return;
+    g_mutex_lock(&listener->message_lock);
+    g_queue_foreach(&listener->message_queue, (GFunc)g_free, NULL);
+    g_queue_clear(&listener->message_queue);
+    g_mutex_unlock(&listener->message_lock);
+}
+
 void dvb_reader_listener_free(struct DVBReaderListener *listener)
 {
     FLOG(" listener: %p\n", listener);
     if (!listener)
         return;
-    fprintf(stderr, "free queue\n");
-    g_queue_foreach(&listener->message_queue, (GFunc)g_free, NULL);
-    g_queue_clear(&listener->message_queue);
-    fprintf(stderr, "free listener\n");
+    if (listener->worker_thread) {
+        dvb_reader_listener_send_message(listener, DVB_READER_LISTENER_MESSAGE_QUIT, NULL, 0, TRUE);
+        g_thread_join(listener->worker_thread);
+        listener->worker_thread = NULL;
+    }
+    dvb_reader_listener_clear_queue(listener);
     g_free(listener);
-    fprintf(stderr, "listener free done\n");
 }
 
 void dvb_reader_remove_listener(DVBReader *reader, int fd, DVBReaderListenerCallback callback)
@@ -460,12 +478,12 @@ void dvb_reader_remove_listener(DVBReader *reader, int fd, DVBReaderListenerCall
 
     if (element) {
         struct DVBReaderListener *listener = (struct DVBReaderListener *)element->data;
-        if (listener->worker_thread) {
+/*        if (listener->worker_thread) {
             dvb_reader_listener_send_message(listener, DVB_READER_LISTENER_MESSAGE_QUIT, NULL, 0, TRUE);
             fprintf(stderr, "join worker thread for %d %p\n", listener->fd, listener->callback);
             g_thread_join(listener->worker_thread);
             fprintf(stderr, "joined worker thread for %d %p\n", listener->fd, listener->callback);
-        }
+        }*/
         dvb_reader_listener_free(listener);
 
         g_list_free_1(element);

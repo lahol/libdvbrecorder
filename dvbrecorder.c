@@ -153,14 +153,12 @@ gboolean dvb_recorder_get_logger(DVBRecorder *recorder, DVBRecorderLoggerProc *l
 int dvb_recorder_enable_video_source(DVBRecorder *recorder, gboolean enable)
 {
     FLOG("\n");
+    LOG(recorder, "dvb_recorder_enable_video_source: %d\n", enable);
     g_return_val_if_fail(recorder != NULL, -1);
-
-    if (recorder->video_source_enabled == enable)
-        return recorder->video_pipe[0];
 
     recorder->video_source_enabled = enable;
     if (enable) {
-        if (pipe(recorder->video_pipe) != 0) {
+        if ((recorder->video_pipe[0] == -1 || recorder->video_pipe[1] == -1) && pipe(recorder->video_pipe) != 0) {
             LOG(recorder, "[lib] pipe failed: (%d) %s\n", errno, strerror(errno));
         }
         LOG(recorder, "[lib] video_pipe: %d/%d, reader: %p\n", recorder->video_pipe[0], recorder->video_pipe[1], recorder->reader);
