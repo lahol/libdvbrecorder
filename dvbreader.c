@@ -106,6 +106,7 @@ struct DVBReaderListener {
     guint32 have_pmt    : 1;
     guint32 write_error : 1;
     guint32 eos         : 1;
+    guint32 terminate   : 1;
 };
 
 enum DVBReaderListenerMessageType {
@@ -147,7 +148,7 @@ void dvb_reader_listener_broadcast_message(DVBReader *reader, enum DVBReaderList
 struct DVBReaderListenerMessage *dvb_reader_listener_pop_message(struct DVBReaderListener *listener);
 void dvb_reader_listener_drop_data_messages(struct DVBReaderListener *listener);
 void dvb_reader_listener_push_packet(struct DVBReaderListener *listener, DVBFilterType type, const uint8_t *packet);
-gint dvb_reader_listener_write_data_full(int fd, const uint8_t *data, gsize size);
+gint dvb_reader_listener_write_data_full(struct DVBReaderListener *listener, const uint8_t *data, gsize size);
 void dvb_reader_listener_clear_queue(struct DVBReaderListener *listener);
 void dvb_reader_listener_free(struct DVBReaderListener *listener);
 
@@ -1248,20 +1249,24 @@ void dvb_reader_listener_push_packet(struct DVBReaderListener *listener, DVBFilt
     }
 }
 
-gint dvb_reader_listener_write_data_full(int fd, const uint8_t *data, gsize size)
+gint dvb_reader_listener_write_data_full(struct DVBReaderListener *listener, const uint8_t *data, gsize size)
 {
     FLOG("\n");
     ssize_t nw, offset;
     unsigned long int error_enc = 0;
     struct pollfd pfd[1];
     int rc;
-    pfd[0].fd = fd;
+    pfd[0].fd = listener->fd;
     pfd[0].events = POLLOUT;
     for (offset = 0; offset < size; offset += nw) {
+        nw = 0;
         if ((rc = poll(pfd, 1, 1000)) <= 0) {
             if (rc == 0) {
-                fprintf(stderr, "Writing to %d timed out.\n", fd);
-                ++error_enc;
+                fprintf(stderr, "Writing to %d timed out, count %lu.\n", listener->fd, error_enc);
+                if (++error_enc > 10 || listener->terminate) {
+                    return -1;
+                }
+
                 continue;
             }
             if (rc == -1) {
@@ -1269,19 +1274,19 @@ gint dvb_reader_listener_write_data_full(int fd, const uint8_t *data, gsize size
                 return -1;
             }
         }
-        if ((nw = write(fd, data + offset, (size_t)(size - offset))) <= 0) {
+        if ((nw = write(listener->fd, data + offset, (size_t)(size - offset))) <= 0) {
             if (nw < 0) {
                 if (errno == EAGAIN) {
-                    fprintf(stderr, "EAGAIN on fd %d while trying to write %zd bytes.\n", fd, (size_t)(size - offset));
+                    fprintf(stderr, "EAGAIN on fd %d while trying to write %zd bytes.\n", listener->fd, (size_t)(size - offset));
                     nw = 0;
                     ++error_enc;
                     continue;
                 }
-                fprintf(stderr, "Could not write to %d.\n", fd);
+                fprintf(stderr, "Could not write to %d.\n", listener->fd);
                 return -1;
             }
             else if (nw == 0) {
-                fprintf(stderr, "Written zero bytes to %d.\n", fd);
+                fprintf(stderr, "Written zero bytes to %d.\n", listener->fd);
             }
             break;
         }
@@ -1307,7 +1312,7 @@ gpointer dvb_reader_listener_thread_proc(struct DVBReaderListener *listener)
         switch (msg->type) {
             case DVB_READER_LISTENER_MESSAGE_DATA:
                 if (listener->fd >= 0 && !listener->write_error) {
-                    if ((rc = dvb_reader_listener_write_data_full(listener->fd, msg->data, msg->data_size)) <= 0) {
+                    if ((rc = dvb_reader_listener_write_data_full(listener, msg->data, msg->data_size)) <= 0) {
                         if (rc < 0)
                             listener->write_error = 1;
                     }
@@ -1324,6 +1329,7 @@ gpointer dvb_reader_listener_thread_proc(struct DVBReaderListener *listener)
                 fprintf(stderr, "listener got QUIT message\n");
                 g_free(msg);
                 listener->worker_thread = NULL;
+                listener->terminate = 1;
                 if (listener->reader)
                     dvb_recorder_event_send(DVB_RECORDER_EVENT_LISTENER_STATUS_CHANGED,
                             listener->reader->event_cb, listener->reader->event_data,
