@@ -1242,7 +1242,7 @@ void dvb_reader_listener_push_packet(struct DVBReaderListener *listener, DVBFilt
 {
     if (((listener->filter & (DVB_FILTER_ALL & ~(DVB_FILTER_PAT | DVB_FILTER_PMT))) & type) ||
         (type == DVB_FILTER_PAT && (listener->filter & DVB_FILTER_PAT) && listener->have_pat == 0) || 
-        (type == DVB_FILTER_PMT && (listener->filter & DVB_FILTER_PMT) && listener->have_pmt == 0 && listener->have_pat == 1)) {
+        (type == DVB_FILTER_PMT && (listener->filter & DVB_FILTER_PMT) && listener->have_pmt == 0)) {
         memcpy(&listener->buffer[listener->buffer_size], packet, TS_SIZE);
         listener->buffer_size += TS_SIZE;
     }
@@ -1406,8 +1406,6 @@ void dvb_reader_listener_send_pmt(DVBReader *reader, struct DVBReaderListener *l
     FLOG("\n");
     LOG(reader->parent_obj, "Send PMT to listener\n");
     if (reader->pmt_packet_count == 0)
-        return;
-    if (listener->have_pat == 0)
         return;
 
     uint8_t i;
