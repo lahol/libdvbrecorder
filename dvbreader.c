@@ -740,6 +740,8 @@ gpointer dvb_reader_data_thread_proc(DVBReader *reader)
     pfd[1].fd = reader->tuner_fd;
     pfd[1].events = POLLIN;
 
+    DVBStreamStatus exit_status = DVB_STREAM_STATUS_UNKNOWN;
+
     while (1) {
         if (poll(pfd, 2, 15000)) {
             if (pfd[1].revents & POLLIN) {
@@ -747,6 +749,7 @@ gpointer dvb_reader_data_thread_proc(DVBReader *reader)
                 if (bytes_read <= 0) {
                     if (bytes_read == 0) {
                         LOG(reader->parent_obj, "[lib] reached EOF\n");
+                        exit_status = DVB_STREAM_STATUS_EOS;
                         break;
                     }
                     if (errno == EAGAIN)
@@ -756,16 +759,19 @@ gpointer dvb_reader_data_thread_proc(DVBReader *reader)
                         continue;
                     }
                     LOG(reader->parent_obj, "[lib] Error reading data. Stopping thread. (%d) %s\n", errno, strerror(errno));
+                    exit_status = DVB_STREAM_STATUS_EOS;
                     break;
                 }
                 ts_reader_push_buffer(ts_reader, buffer, bytes_read);
             }
             if (pfd[0].revents & POLLIN || pfd[0].revents & POLLNVAL) {
                 LOG(reader->parent_obj, "[lib] Received data on control pipe. Stop thread.\n");
+                exit_status = DVB_STREAM_STATUS_STOPPED;
                 break;
             }
             if (pfd[1].revents & POLLNVAL || pfd[1].revents & POLLHUP || pfd[1].revents & POLLERR) {
                 LOG(reader->parent_obj, "[lib] Input closed\n");
+                exit_status = DVB_STREAM_STATUS_EOS;
                 break;
             }
         }
@@ -784,7 +790,7 @@ done:
 
     dvb_recorder_event_send(DVB_RECORDER_EVENT_STREAM_STATUS_CHANGED,
             reader->event_cb, reader->event_data,
-            "status", DVB_STREAM_STATUS_EOS,
+            "status", exit_status,
             NULL, NULL);
 
     return NULL;
