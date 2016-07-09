@@ -148,6 +148,7 @@ struct DVBReaderListenerMessage *dvb_reader_listener_pop_message(struct DVBReade
 void dvb_reader_listener_drop_data_messages(struct DVBReaderListener *listener);
 void dvb_reader_listener_push_packet(struct DVBReaderListener *listener, DVBFilterType type, const uint8_t *packet);
 gint dvb_reader_listener_write_data_full(int fd, const uint8_t *data, gsize size);
+void dvb_reader_listener_free(struct DVBReaderListener *listener);
 
 void dvb_reader_dvbpsi_message(dvbpsi_t *handle, const dvbpsi_msg_level_t level, const char *msg);
 void dvb_reader_dvbpsi_pat_cb(DVBReader *reader, dvbpsi_pat_t *pat);
@@ -161,6 +162,7 @@ gboolean dvb_reader_handle_packet(const uint8_t *packet, void *userdata);
 
 void dvb_reader_set_parent_obj(DVBReader *reader, gpointer parent)
 {
+    FLOG("\n");
     if (!reader)
         return;
     reader->parent_obj = parent;
@@ -168,6 +170,7 @@ void dvb_reader_set_parent_obj(DVBReader *reader, gpointer parent)
 
 gint dvb_reader_compare_event_tables_id(struct EITable *a, struct EITable *b)
 {
+    FLOG("\n");
     if (a == NULL)
         return 1;
     if (b == NULL)
@@ -181,6 +184,7 @@ gint dvb_reader_compare_event_tables_id(struct EITable *a, struct EITable *b)
 
 gint dvb_reader_find_table_id(struct EITable *table, guint8 table_id)
 {
+    FLOG("\n");
     if (table && table->table_id == table_id)
         return 0;
     return 1;
@@ -188,6 +192,7 @@ gint dvb_reader_find_table_id(struct EITable *table, guint8 table_id)
 
 DVBReader *dvb_reader_new(DVBRecorderEventCallback cb, gpointer userdata)
 {
+    FLOG("\n");
     DVBReader *reader = g_malloc0(sizeof(DVBReader));
 
     reader->event_cb = cb;
@@ -218,6 +223,7 @@ err:
 
 void dvb_reader_free_eit_tables(GList *eit_tables)
 {
+    FLOG("\n");
     GList *tmp;
     for (tmp = eit_tables; tmp; tmp = g_list_next(tmp)) {
         g_list_free_full(((struct EITable *)tmp->data)->events, (GDestroyNotify)epg_event_free);
@@ -228,6 +234,7 @@ void dvb_reader_free_eit_tables(GList *eit_tables)
 
 void dvb_reader_reset(DVBReader *reader)
 {
+    FLOG("\n");
     if (!reader)
         return;
 
@@ -291,6 +298,7 @@ void dvb_reader_reset(DVBReader *reader)
 
 void dvb_reader_destroy(DVBReader *reader)
 {
+    FLOG("\n");
     if (!reader)
         return;
 
@@ -305,14 +313,16 @@ void dvb_reader_destroy(DVBReader *reader)
     }
 
 
-    g_queue_free_full(&reader->event_queue, (GDestroyNotify)dvb_recorder_event_destroy);
+    g_queue_foreach(&reader->event_queue, (GFunc)dvb_recorder_event_destroy, NULL);
+    g_queue_clear(&reader->event_queue);
 
-    g_list_free_full(reader->listeners, g_free);
+    g_list_free_full(reader->listeners, (GDestroyNotify)dvb_reader_listener_free);
     g_list_free_full(reader->active_pids, g_free);
 }
 
 DVBStreamStatus dvb_reader_get_stream_status(DVBReader *reader)
 {
+    FLOG("\n");
     if (reader == NULL)
         return DVB_STREAM_STATUS_UNKNOWN;
     return reader->status;
@@ -320,6 +330,7 @@ DVBStreamStatus dvb_reader_get_stream_status(DVBReader *reader)
 
 void dvb_reader_add_active_pid(DVBReader *reader, uint16_t pid, DVBFilterType type)
 {
+    FLOG("\n");
     struct DVBPidDescription *desc = g_malloc0(sizeof(struct DVBPidDescription));
 
     desc->pid = pid;
@@ -345,6 +356,7 @@ DVBFilterType dvb_reader_get_active_pid_type(DVBReader *reader, uint16_t pid)
 
 static gint dvb_reader_compare_listener_fd(struct DVBReaderListener *listener, gpointer fd)
 {
+    FLOG("\n");
     if (listener == NULL)
         return -1;
     if (listener->fd == GPOINTER_TO_INT(fd))
@@ -354,6 +366,7 @@ static gint dvb_reader_compare_listener_fd(struct DVBReaderListener *listener, g
 
 static gint dvb_reader_compare_listener_cb(struct DVBReaderListener *listener, gpointer callback)
 {
+    FLOG("\n");
     if (listener == NULL)
         return -1;
     if (listener->callback == callback)
@@ -364,6 +377,7 @@ static gint dvb_reader_compare_listener_cb(struct DVBReaderListener *listener, g
 void dvb_reader_set_listener(DVBReader *reader, DVBFilterType filter, int fd,
                              DVBReaderListenerCallback callback, gpointer userdata)
 {
+    FLOG("\n");
     g_return_if_fail(reader != NULL);
 
     LOG(reader->parent_obj, "[lib] set listener %d (%p), mutex: %p\n", fd, callback, &reader->listener_mutex);
@@ -406,8 +420,22 @@ void dvb_reader_set_listener(DVBReader *reader, DVBFilterType filter, int fd,
     g_mutex_unlock(&reader->listener_mutex);
 }
 
+void dvb_reader_listener_free(struct DVBReaderListener *listener)
+{
+    FLOG(" listener: %p\n", listener);
+    if (!listener)
+        return;
+    fprintf(stderr, "free queue\n");
+    g_queue_foreach(&listener->message_queue, (GFunc)g_free, NULL);
+    g_queue_clear(&listener->message_queue);
+    fprintf(stderr, "free listener\n");
+    g_free(listener);
+    fprintf(stderr, "listener free done\n");
+}
+
 void dvb_reader_remove_listener(DVBReader *reader, int fd, DVBReaderListenerCallback callback)
 {
+    FLOG("\n");
     g_return_if_fail(reader != NULL);
 
     LOG(reader->parent_obj, "[lib] remove listener %d (%p), mutex: %p\n", fd, callback, &reader->listener_mutex);
@@ -438,9 +466,8 @@ void dvb_reader_remove_listener(DVBReader *reader, int fd, DVBReaderListenerCall
             g_thread_join(listener->worker_thread);
             fprintf(stderr, "joined worker thread for %d %p\n", listener->fd, listener->callback);
         }
-        g_queue_free_full(&listener->message_queue, (GDestroyNotify)g_free);
+        dvb_reader_listener_free(listener);
 
-        g_free(element->data);
         g_list_free_1(element);
     }
 
@@ -453,6 +480,7 @@ void dvb_reader_tune(DVBReader *reader,
                      guint32 symbol_rate,
                      guint16 program_number)
 {
+    FLOG("\n");
     g_return_if_fail(reader != NULL);
 
     /* FIXME: stop running stream first */
@@ -470,6 +498,7 @@ void dvb_reader_tune(DVBReader *reader,
 
 void dvb_reader_start(DVBReader *reader)
 {
+    FLOG("\n");
     g_return_if_fail(reader != NULL);
 
     if (pipe(reader->control_pipe_stream) != 0)
@@ -482,6 +511,7 @@ void dvb_reader_start(DVBReader *reader)
 
 void dvb_reader_stop(DVBReader *reader)
 {
+    FLOG("\n");
     g_return_if_fail(reader != NULL);
 
     reader->status = DVB_STREAM_STATUS_STOPPED;
@@ -512,6 +542,7 @@ void dvb_reader_stop(DVBReader *reader)
 
 GList *dvb_reader_get_events(DVBReader *reader)
 {
+    FLOG("\n");
     g_return_val_if_fail(reader != NULL, NULL);
 
     GList *complete = NULL;
@@ -528,6 +559,7 @@ GList *dvb_reader_get_events(DVBReader *reader)
 
 EPGEvent *dvb_reader_get_event(DVBReader *reader, guint16 eventid)
 {
+    FLOG("\n");
     GList *tmp_table, *tmp;
     for (tmp_table = reader->eit_tables; tmp_table; tmp_table = g_list_next(tmp_table)) {
         for (tmp = ((struct EITable *)tmp_table->data)->events; tmp; tmp = g_list_next(tmp)) {
@@ -541,6 +573,7 @@ EPGEvent *dvb_reader_get_event(DVBReader *reader, guint16 eventid)
 
 void dvb_reader_push_event(DVBReader *reader, DVBRecorderEvent *event)
 {
+    FLOG("\n");
     g_mutex_lock(&reader->event_mutex);
 
     g_queue_push_tail(&reader->event_queue, event);
@@ -551,6 +584,7 @@ void dvb_reader_push_event(DVBReader *reader, DVBRecorderEvent *event)
 
 void dvb_reader_push_event_next(DVBReader *reader, DVBRecorderEvent *event)
 {
+    FLOG("\n");
     g_mutex_lock(&reader->event_mutex);
 
     g_queue_push_head(&reader->event_queue, event);
@@ -561,6 +595,7 @@ void dvb_reader_push_event_next(DVBReader *reader, DVBRecorderEvent *event)
 
 DVBRecorderEvent *dvb_reader_pop_event(DVBReader *reader)
 {
+    FLOG("\n");
     DVBRecorderEvent *event;
 
     g_mutex_lock(&reader->event_mutex);
@@ -576,6 +611,7 @@ DVBRecorderEvent *dvb_reader_pop_event(DVBReader *reader)
 
 void dvb_reader_event_handle_tune_in(DVBReader *reader, DVBRecorderEventTuneIn *event)
 {
+    FLOG("\n");
     LOG(reader->parent_obj, "[lib] Tune In Handler\n");
     dvb_reader_stop(reader);
     int rc;
@@ -620,6 +656,7 @@ void dvb_reader_event_handle_tune_in(DVBReader *reader, DVBRecorderEventTuneIn *
 
 gpointer dvb_reader_event_thread_proc(DVBReader *reader)
 {
+    FLOG("\n");
     DVBRecorderEvent *event;
 
     while (1) {
@@ -646,6 +683,7 @@ gpointer dvb_reader_event_thread_proc(DVBReader *reader)
 
 gpointer dvb_reader_data_thread_proc(DVBReader *reader)
 {
+    FLOG("\n");
     LOG(reader->parent_obj, "[lib] dvb_reader_data_thread_proc\n");
     static TsReaderClass tscls = {
         .handle_packet = dvb_reader_handle_packet,
@@ -736,6 +774,7 @@ done:
 
 gchar *dvb_reader_get_running_program(DVBReader *reader)
 {
+    FLOG("\n");
     g_return_val_if_fail(reader != NULL, NULL);
 
     GList *tmp;
@@ -777,6 +816,7 @@ gchar *dvb_reader_get_running_program(DVBReader *reader)
 
 DVBStreamInfo *dvb_reader_get_stream_info(DVBReader *reader)
 {
+    FLOG("\n");
     g_return_val_if_fail(reader != NULL, NULL);
 
     DVBStreamInfo *info = g_malloc0(sizeof(DVBStreamInfo));
@@ -1121,6 +1161,7 @@ void dvb_reader_listener_send_message(struct DVBReaderListener *listener, enum D
 void dvb_reader_listener_broadcast_message(DVBReader *reader, enum DVBReaderListenerMessageType type, 
                                            uint8_t *data, gsize size, gboolean immediately)
 {
+    FLOG("\n");
     GList *tmp;
 
     g_mutex_lock(&reader->listener_mutex);
@@ -1132,6 +1173,7 @@ void dvb_reader_listener_broadcast_message(DVBReader *reader, enum DVBReaderList
 
 struct DVBReaderListenerMessage *dvb_reader_listener_pop_message(struct DVBReaderListener *listener)
 {
+    FLOG("\n");
     struct DVBReaderListenerMessage *msg;
 
     g_mutex_lock(&listener->message_lock);
@@ -1146,6 +1188,7 @@ struct DVBReaderListenerMessage *dvb_reader_listener_pop_message(struct DVBReade
 
 void dvb_reader_listener_drop_data_messages(struct DVBReaderListener *listener)
 {
+    FLOG("\n");
     GList *tmp, *next;
 
     g_mutex_lock(&listener->message_lock);
@@ -1183,6 +1226,7 @@ void dvb_reader_listener_push_packet(struct DVBReaderListener *listener, DVBFilt
 
 gint dvb_reader_listener_write_data_full(int fd, const uint8_t *data, gsize size)
 {
+    FLOG("\n");
     ssize_t nw, offset;
     unsigned long int error_enc = 0;
     struct pollfd pfd[1];
@@ -1227,6 +1271,7 @@ gint dvb_reader_listener_write_data_full(int fd, const uint8_t *data, gsize size
 
 gpointer dvb_reader_listener_thread_proc(struct DVBReaderListener *listener)
 {
+    FLOG("\n");
     struct DVBReaderListenerMessage *msg;
     gint rc;
 
@@ -1243,8 +1288,6 @@ gpointer dvb_reader_listener_thread_proc(struct DVBReaderListener *listener)
                             listener->write_error = 1;
                     }
                 }
-                if (listener->fd < 0)
-                    fprintf(stderr, "write data to %p\n", listener->callback);
                 if (listener->callback) {
                     listener->callback(msg->data, msg->data_size, listener->userdata);
                 }
@@ -1299,6 +1342,7 @@ void _dump_packet(const uint8_t *packet)
 
 void dvb_reader_listener_send_pat(DVBReader *reader, struct DVBReaderListener *listener)
 {
+    FLOG("\n");
     LOG(reader->parent_obj, "Send PAT to listener (%u)\n", reader->pat_packet_count);
     if (reader->pat_packet_count == 0)
         return;
@@ -1314,6 +1358,7 @@ void dvb_reader_listener_send_pat(DVBReader *reader, struct DVBReaderListener *l
 
 void dvb_reader_listener_send_pmt(DVBReader *reader, struct DVBReaderListener *listener)
 {
+    FLOG("\n");
     LOG(reader->parent_obj, "Send PMT to listener\n");
     if (reader->pmt_packet_count == 0)
         return;
@@ -1329,6 +1374,7 @@ void dvb_reader_listener_send_pmt(DVBReader *reader, struct DVBReaderListener *l
 
 gboolean dvb_reader_get_current_pat_packets(DVBReader *reader, guint8 **buffer, gsize *length)
 {
+    FLOG("\n");
     g_return_val_if_fail(reader != NULL, FALSE);
 
     if (reader->pat_packet_count == 0)
@@ -1346,6 +1392,7 @@ gboolean dvb_reader_get_current_pat_packets(DVBReader *reader, guint8 **buffer, 
 
 gboolean dvb_reader_get_current_pmt_packets(DVBReader *reader, guint8 **buffer, gsize *length)
 {
+    FLOG("\n");
     g_return_val_if_fail(reader != NULL, FALSE);
 
     if (reader->pmt_packet_count == 0)

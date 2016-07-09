@@ -243,7 +243,6 @@ void dvb_recorder_stop(DVBRecorder *recorder)
 void dvb_recorder_record_callback(const guint8 *data, gsize size, DVBRecorder *recorder)
 {
     FLOG("\n");
-    fprintf(stderr, "record callback: %zd\n", size);
     ssize_t nw, offset;
     for (offset = 0; offset < size; offset += nw) {
         if ((nw = write(recorder->record_fd, data + offset, (size_t)(size - offset))) <= 0) {
