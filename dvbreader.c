@@ -474,7 +474,7 @@ void dvb_reader_listener_free(struct DVBReaderListener *listener)
     FLOG(" listener: %p\n", listener);
     if (!listener)
         return;
-    if (listener->worker_thread) {
+    if (listener->worker_thread && !listener->terminate) {
         dvb_reader_listener_send_message(listener, DVB_READER_LISTENER_MESSAGE_QUIT, NULL, 0, TRUE);
         g_thread_join(listener->worker_thread);
         listener->worker_thread = NULL;
@@ -1389,7 +1389,6 @@ gpointer dvb_reader_listener_thread_proc(struct DVBReaderListener *listener)
             case DVB_READER_LISTENER_MESSAGE_QUIT:
                 LOG(listener->reader->parent_obj, "listener got QUIT message\n");
                 g_free(msg);
-                listener->worker_thread = NULL;
                 listener->terminate = 1;
                 if (listener->reader)
                     dvb_recorder_event_send(DVB_RECORDER_EVENT_LISTENER_STATUS_CHANGED,
