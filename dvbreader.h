@@ -16,6 +16,7 @@ typedef void (*DVBReaderListenerCallback)(const guint8 *, gsize, gpointer);
 
 void dvb_reader_set_listener(DVBReader *reader, DVBFilterType filter, int fd,
                              DVBReaderListenerCallback callback, gpointer userdata);
+void dvb_reader_listener_set_running(DVBReader *reader, int fd, DVBReaderListenerCallback callback, gboolean do_run);
 void dvb_reader_remove_listener(DVBReader *reader, int fd, DVBReaderListenerCallback callback);
 
 gboolean dvb_reader_get_current_pat_packets(DVBReader *reader, guint8 **buffer, gsize *length);

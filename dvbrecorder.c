@@ -193,6 +193,13 @@ int dvb_recorder_enable_video_source(DVBRecorder *recorder, gboolean enable)
     }
 }
 
+void dvb_recorder_video_source_run(DVBRecorder *recorder)
+{
+    g_return_if_fail(recorder != NULL);
+
+    dvb_reader_listener_set_running(recorder->reader, recorder->video_pipe[1], NULL, TRUE);
+}
+
 GList *dvb_recorder_get_channel_list(DVBRecorder *recorder)
 {
     FLOG("\n");

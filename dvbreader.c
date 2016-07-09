@@ -114,7 +114,8 @@ enum DVBReaderListenerMessageType {
     DVB_READER_LISTENER_MESSAGE_DATA,
     DVB_READER_LISTENER_MESSAGE_DROP,
     DVB_READER_LISTENER_MESSAGE_QUIT,
-    DVB_READER_LISTENER_MESSAGE_EOS
+    DVB_READER_LISTENER_MESSAGE_EOS,
+    DVB_READER_LISTENER_MESSAGE_CONTINUE
 };
 
 struct DVBReaderListenerMessage {
@@ -433,6 +434,29 @@ void dvb_reader_set_listener(DVBReader *reader, DVBFilterType filter, int fd,
     dvb_reader_listener_send_pmt(reader, listener);
 
     g_mutex_unlock(&reader->listener_mutex);
+}
+
+void dvb_reader_listener_set_running(DVBReader *reader, int fd, DVBReaderListenerCallback callback, gboolean do_run)
+{
+    g_return_if_fail(reader != NULL);
+
+    GList *element = NULL;
+    if (fd >= 0) 
+        element = g_list_find_custom(reader->listeners, GINT_TO_POINTER(fd), (GCompareFunc)dvb_reader_compare_listener_fd);
+    else
+        element = g_list_find_custom(reader->listeners, callback, (GCompareFunc)dvb_reader_compare_listener_cb);
+
+    if (!element)
+        return;
+
+    if (do_run)
+        dvb_reader_listener_send_message((struct DVBReaderListener *)element->data, DVB_READER_LISTENER_MESSAGE_CONTINUE,
+                                         NULL, 0, TRUE);
+    else {
+        g_mutex_lock(&((struct DVBReaderListener *)element->data)->message_lock);
+        ((struct DVBReaderListener *)element->data)->running = 0;
+        g_mutex_unlock(&((struct DVBReaderListener *)element->data)->message_lock);
+    }
 }
 
 void dvb_reader_listener_clear_queue(struct DVBReaderListener *listener)
@@ -1224,8 +1248,12 @@ struct DVBReaderListenerMessage *dvb_reader_listener_pop_message(struct DVBReade
 
     g_mutex_lock(&listener->message_lock);
 
-    while ((msg = (struct DVBReaderListenerMessage *)g_queue_pop_head(&listener->message_queue)) == NULL)
+    while ((msg = (struct DVBReaderListenerMessage *)g_queue_peek_head(&listener->message_queue)) == NULL ||
+            (listener->running == 0 && msg->type != DVB_READER_LISTENER_MESSAGE_CONTINUE &&
+                                       msg->type != DVB_READER_LISTENER_MESSAGE_QUIT))
         g_cond_wait(&listener->message_cond, &listener->message_lock);
+
+    msg = g_queue_pop_head(&listener->message_queue);
 
     g_mutex_unlock(&listener->message_lock);
 
@@ -1353,6 +1381,12 @@ gpointer dvb_reader_listener_thread_proc(struct DVBReaderListener *listener)
             case DVB_READER_LISTENER_MESSAGE_DROP:
                 fprintf(stderr, "listener got DROP message\n");
                 dvb_reader_listener_drop_data_messages(listener);
+                break;
+            case DVB_READER_LISTENER_MESSAGE_CONTINUE:
+                fprintf(stderr, "listener got CONTINUE message\n");
+                g_mutex_lock(&listener->message_lock);
+                listener->running = 1;
+                g_mutex_unlock(&listener->message_lock);
                 break;
             case DVB_READER_LISTENER_MESSAGE_QUIT:
                 fprintf(stderr, "listener got QUIT message\n");

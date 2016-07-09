@@ -29,6 +29,7 @@ DVBRecorder *dvb_recorder_new(DVBRecorderEventCallback cb, gpointer userdata);
 void dvb_recorder_destroy(DVBRecorder *recorder);
 
 int dvb_recorder_enable_video_source(DVBRecorder *recorder, gboolean enable);
+void dvb_recorder_video_source_run(DVBRecorder *recorder);
 
 typedef void (*DVBRecorderLoggerProc)(gchar *, gpointer);
 void dvb_recorder_set_logger(DVBRecorder *recorder, DVBRecorderLoggerProc logger, gpointer userdata);
