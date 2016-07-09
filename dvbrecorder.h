@@ -39,6 +39,7 @@ GList *dvb_recorder_get_channel_list(DVBRecorder *recorder);
 gboolean dvb_recorder_set_channel(DVBRecorder *recorder, guint64 channel_id);
 gboolean dvb_recorder_record_start(DVBRecorder *recorder);
 void dvb_recorder_record_stop(DVBRecorder *recorder);
+void dvb_recorder_stop(DVBRecorder *recorder);
 void dvb_recorder_set_capture_dir(DVBRecorder *recorder, const gchar *capture_dir);
 void dvb_recorder_set_record_filename_pattern(DVBRecorder *recorder, const gchar *pattern);
 gchar *dvb_recorder_make_record_filename(DVBRecorder *recorder, const gchar *alternate_dir, const gchar *alternate_pattern);
