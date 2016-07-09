@@ -445,7 +445,7 @@ float dvb_tuner_get_signal_strength(DVBTuner *tuner)
 {
     if (!tuner || tuner->frontend_fd < 0)
         return -1.0f;
-    int64_t strength;
+    int16_t strength = -1;;
     if (ioctl(tuner->frontend_fd, FE_READ_SIGNAL_STRENGTH, &strength) < 0) {
         return -1.0f;
     }
