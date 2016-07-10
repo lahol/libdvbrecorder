@@ -11,11 +11,12 @@ typedef struct _DVBReader DVBReader;
 DVBReader *dvb_reader_new(DVBRecorderEventCallback cb, gpointer userdata);
 void dvb_reader_destroy(DVBReader *reader);
 
-/* packet [188], type, userdata */
-typedef void (*DVBReaderListenerCallback)(const guint8 *, DVBFilterType, gpointer);
+/* data, size, userdata */
+typedef void (*DVBReaderListenerCallback)(const guint8 *, gsize, gpointer);
 
 void dvb_reader_set_listener(DVBReader *reader, DVBFilterType filter, int fd,
                              DVBReaderListenerCallback callback, gpointer userdata);
+void dvb_reader_listener_set_running(DVBReader *reader, int fd, DVBReaderListenerCallback callback, gboolean do_run);
 void dvb_reader_remove_listener(DVBReader *reader, int fd, DVBReaderListenerCallback callback);
 
 gboolean dvb_reader_get_current_pat_packets(DVBReader *reader, guint8 **buffer, gsize *length);
@@ -37,3 +38,6 @@ void dvb_reader_stop(DVBReader *reader);
 
 GList *dvb_reader_get_events(DVBReader *reader); /* new list containing reference of all events */
 EPGEvent *dvb_reader_get_event(DVBReader *reader, guint16 eventid); /* [no transfer] */
+
+float dvb_reader_query_signal_strength(DVBReader *reader);
+
