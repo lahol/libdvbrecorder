@@ -23,6 +23,8 @@ void dvb_recorder_event_record_status_changed_set_property(DVBRecorderEvent *eve
         const gchar *prop_name, const gpointer prop_value);
 void dvb_recorder_event_eit_changed_set_property(DVBRecorderEvent *event,
         const gchar *prop_name, const gpointer prop_value);
+void dvb_recorder_event_listener_status_changed_set_property(DVBRecorderEvent *event,
+        const gchar *prop_name, const gpointer prop_value);
 
 static struct DREventClass event_classes[] = {
     { DVB_RECORDER_EVENT_TUNED, sizeof(DVBRecorderEventTuned),
@@ -40,6 +42,10 @@ static struct DREventClass event_classes[] = {
     { DVB_RECORDER_EVENT_EIT_CHANGED, sizeof(DVBRecorderEventEITChanged),
         dvb_recorder_event_eit_changed_set_property, NULL },
     { DVB_RECORDER_EVENT_SDT_CHANGED, sizeof(DVBRecorderEventSDTChanged),
+        NULL, NULL },
+    { DVB_RECORDER_EVENT_LISTENER_STATUS_CHANGED, sizeof(DVBRecorderEventListenerStatusChanged),
+        dvb_recorder_event_listener_status_changed_set_property, NULL },
+    { DVB_RECORDER_EVENT_VIDEO_DIED, sizeof(DVBRecorderEventVideoDied),
         NULL, NULL },
 };
 
@@ -235,3 +241,27 @@ void dvb_recorder_event_eit_changed_set_property(DVBRecorderEvent *event,
         fprintf(stderr, "Unknown property: %s\n", prop_name);
     }
 }
+
+void dvb_recorder_event_listener_status_changed_set_property(DVBRecorderEvent *event,
+        const gchar *prop_name, const gpointer prop_value)
+{
+    if (!event)
+        return;
+    DVBRecorderEventListenerStatusChanged *ev = (DVBRecorderEventListenerStatusChanged *)event;
+
+    if (g_strcmp0(prop_name, "fd") == 0) {
+        ev->listener_fd = GPOINTER_TO_INT(prop_value);
+        ev->fd_valid = 1;
+    }
+    else if (g_strcmp0(prop_name, "cb") == 0) {
+        ev->listener_cb = (gpointer)prop_value;
+        ev->cb_valid = 1;
+    }
+    else if (g_strcmp0(prop_name, "status") == 0) {
+        ev->status = GPOINTER_TO_UINT(prop_value);
+    }
+    else {
+        fprintf(stderr, "Unknown property: %s\n", prop_name);
+    }
+}
+

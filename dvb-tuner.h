@@ -19,3 +19,5 @@ int dvb_tuner_tune(DVBTuner *tuner,
 void dvb_tuner_add_pid(DVBTuner *tuner, uint16_t pid);
 
 int dvb_tuner_get_fd(DVBTuner *tuner);
+
+float dvb_tuner_get_signal_strength(DVBTuner *tuner);
