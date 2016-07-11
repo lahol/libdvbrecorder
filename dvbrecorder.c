@@ -263,6 +263,10 @@ void dvb_recorder_record_callback(const guint8 *data, gsize size, DVBRecorder *r
                 LOG(recorder, "[lib] Could not write. Stop recording: %d (%s)\n", errno, strerror(errno));
                 goto err;
             }
+            else if (nw == 0) {
+                LOG(recorder, "[lib] Written zero bytes. Trying again.\n");
+                continue;
+            }
             break;
         }
     }
