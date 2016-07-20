@@ -140,8 +140,6 @@ void dvb_tuner_clean(DVBTuner *tuner)
     }\
 } while (0)
 
-    CLOSE_FD(frontend_fd);
-    CLOSE_FD(dvr_fd);
 
     struct PIDFilterList *tmp;
     while (tuner->pid_filters) {
@@ -154,6 +152,9 @@ void dvb_tuner_clean(DVBTuner *tuner)
 
         tuner->pid_filters = tmp;
     }
+
+    CLOSE_FD(dvr_fd);
+    CLOSE_FD(frontend_fd);
 
 #undef CLOSE_FD
 }
