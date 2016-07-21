@@ -45,3 +45,5 @@ gchar *channel_convert_name_to_xine(ChannelData *data);
 void channel_parse_name(gchar *vdrraw, gchar **name, gchar **provider);
 void channel_data_parse_vdr_parameter(ChannelData *channel);
 
+const gchar *channel_data_signalsource_key_to_string(const gchar *key);
+const gchar *channel_data_signalsource_string_to_key(const gchar *string);
