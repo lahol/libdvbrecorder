@@ -212,7 +212,7 @@ const gchar *channel_data_signalsource_string_to_key(const gchar *string)
 {
     guint i;
     for (i = 0; signalsource_translations[i] != NULL; i += 2) {
-        if (g_strcmp0(key, signalsource_translations[i+1]) == 0)
+        if (g_strcmp0(string, signalsource_translations[i+1]) == 0)
             return signalsource_translations[i];
     }
 

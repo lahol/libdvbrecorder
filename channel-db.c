@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "scheduled.h"
 
 sqlite3 *dbhandler_db = NULL;
 sqlite3_stmt *fav_update_entry_stmt = NULL;
@@ -63,6 +64,9 @@ gint channel_db_init(const gchar *db_path)
     sql = "create table if not exists favourites(chnl_id integer, list_id integer, position integer)";
     rc = sqlite3_exec(dbhandler_db, sql, NULL, NULL, NULL);
     if (rc != SQLITE_OK)
+        goto out;
+
+    if (scheduled_events_db_init() != 0)
         goto out;
 
     return 0;
