@@ -5,7 +5,22 @@ extern sqlite3 *dbhandler_db;
 
 gint scheduled_events_db_init(void)
 {
-    /* init statements */
+    /* This gets only called from channel_db_init. Thus we do not have to check whether dbhandler_db is valid. */
+    gint rc;
+    char *sql;
+
+    sql = "create table if not exists schedule_events(event_id integer primary key, event_start integer, event_end integer,\
+           chnl_id integer, status integer, recurring_parent integer)";
+    rc = sqlite3_exec(dbhandler_db, sql, NULL, NULL, NULL);
+    if (rc != SQLITE_OK)
+        return 1;
+
+    sql = "create table if not exists schedule_recurring(recurrent_id integer primary key, weekday integer, time_start integer,\
+           duration integer, chnl_id integer, next_event_id integer)";
+    rc = sqlite3_exec(dbhandler_db, sql, NULL, NULL, NULL);
+    if (rc != SQLITE_OK)
+        return 1;
+
     return 0;
 }
 
