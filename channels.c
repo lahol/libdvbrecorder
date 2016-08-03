@@ -187,3 +187,34 @@ void channel_parse_name(gchar *vdrraw, gchar **name, gchar **provider)
 
     g_strfreev(tokens);
 }
+
+static const gchar *signalsource_translations[] = {
+    "S19E2", "S19.2E",
+    "S23E5", "S23.E5",
+    "S13E0", "S13E",
+    "S28E2", "S28.2E",
+    "S9E0", "S9.0E",
+    NULL, NULL
+};
+
+const gchar *channel_data_signalsource_key_to_string(const gchar *key)
+{
+    guint i;
+    for (i = 0; signalsource_translations[i] != NULL; i += 2) {
+        if (g_strcmp0(key, signalsource_translations[i]) == 0)
+            return signalsource_translations[i+1];
+    }
+
+    return NULL;
+}
+
+const gchar *channel_data_signalsource_string_to_key(const gchar *string)
+{
+    guint i;
+    for (i = 0; signalsource_translations[i] != NULL; i += 2) {
+        if (g_strcmp0(string, signalsource_translations[i+1]) == 0)
+            return signalsource_translations[i];
+    }
+
+    return NULL;
+}
