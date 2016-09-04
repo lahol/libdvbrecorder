@@ -1,7 +1,11 @@
 #include "scheduled.h"
 #include <sqlite3.h>
+#include <stdio.h>
 
 extern sqlite3 *dbhandler_db;
+
+sqlite3_stmt *add_event_stmt = NULL;
+sqlite3_stmt *enum_event_stmt = NULL;
 
 gint scheduled_events_db_init(void)
 {
@@ -24,9 +28,47 @@ gint scheduled_events_db_init(void)
     return 0;
 }
 
+void scheduled_events_db_cleanup(void)
+{
+    if (add_event_stmt) {
+        sqlite3_finalize(add_event_stmt);
+        add_event_stmt = NULL;
+    }
+    if (enum_event_stmt) {
+        sqlite3_finalize(enum_event_stmt);
+        enum_event_stmt = NULL;
+    }
+}
+
 guint scheduled_event_add(DVBRecorder *recorder, guint channel_id, guint64 time_start, guint64 time_end)
 {
-    return 0;
+    g_return_val_if_fail(recorder != NULL, 0);
+
+    int rc;
+
+    if (add_event_stmt == NULL) {
+        rc = sqlite3_prepare_v2(dbhandler_db,
+                "insert into schedule_events(event_start, event_end, chnl_id, status, recurring_parent) "
+                "values (?,?,?,?,?);",
+                -1, &add_event_stmt, NULL);
+        if (rc != SQLITE_OK)
+            return 0;
+    }
+
+    /* fixme: take care of signedness */
+    sqlite3_bind_int64(add_event_stmt, 1, (gint64)time_start);
+    sqlite3_bind_int64(add_event_stmt, 2, (gint64)time_end);
+    sqlite3_bind_int64(add_event_stmt, 3, (gint64)channel_id);
+    sqlite3_bind_int(add_event_stmt, 4, 0);
+    sqlite3_bind_int(add_event_stmt, 5, 0);
+
+    rc = sqlite3_step(add_event_stmt);
+    sqlite3_reset(add_event_stmt);
+
+    if (rc != SQLITE_OK && rc != SQLITE_DONE)
+        return 0;
+
+    return (guint)sqlite3_last_insert_rowid(dbhandler_db);
 }
 
 guint scheduled_event_add_recurring(DVBRecorder *recorder, guint channel_id, ScheduleWeekday weekday, guint start_time, guint duration)
@@ -36,6 +78,33 @@ guint scheduled_event_add_recurring(DVBRecorder *recorder, guint channel_id, Sch
 
 void scheduled_event_enum(DVBRecorder *recorder, ScheduledEventEnumProc callback, gpointer userdata)
 {
+    g_return_if_fail(recorder != NULL);
+    g_return_if_fail(callback != NULL);
+
+    int rc;
+    ScheduledEvent event;
+
+    if (enum_event_stmt == NULL) {
+        rc = sqlite3_prepare_v2(dbhandler_db, "select * from schedule_events order by event_start asc",
+                -1, &enum_event_stmt, NULL);
+        if (rc != SQLITE_OK) {
+            fprintf(stderr, "Could not create enum events statement.\n");
+            return;
+        }
+    }
+
+    while ((rc = sqlite3_step(enum_event_stmt)) == SQLITE_ROW) {
+        event.id = (guint)sqlite3_column_int(enum_event_stmt, 0);
+        event.time_start = (guint64)sqlite3_column_int64(enum_event_stmt, 1);
+        event.time_end = (guint64)sqlite3_column_int64(enum_event_stmt, 2);
+        event.channel_id = (guint)sqlite3_column_int64(enum_event_stmt, 3);
+        event.status = sqlite3_column_int(enum_event_stmt, 4);
+        event.recurring_parent = sqlite3_column_int(enum_event_stmt, 5);
+
+        callback(&event, userdata);
+    }
+
+    sqlite3_finalize(enum_event_stmt);
 }
 
 void scheduled_event_recurring_enum(DVBRecorder *recorder, ScheduledEventRecurringEnumProc callback, gpointer userdata)
