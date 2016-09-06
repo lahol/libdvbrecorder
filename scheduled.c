@@ -1,4 +1,6 @@
 #include "scheduled.h"
+#include "dvbrecorder-internal.h"
+#include "timed-events.h"
 #include <sqlite3.h>
 #include <stdio.h>
 
@@ -6,8 +8,9 @@ extern sqlite3 *dbhandler_db;
 
 sqlite3_stmt *add_event_stmt = NULL;
 sqlite3_stmt *enum_event_stmt = NULL;
-sqlite3_stmt *find_next_event_stmt = NULL;
+sqlite3_stmt *find_upcoming_events_stmt = NULL;
 
+void dvb_recorder_translate_scheduled_event(DVBRecorder *recorder, ScheduledEvent *event);
 void scheduled_events_check_next_event(DVBRecorder *recorder);
 
 gint scheduled_events_db_init(void)
@@ -41,9 +44,9 @@ void scheduled_events_db_cleanup(void)
         sqlite3_finalize(enum_event_stmt);
         enum_event_stmt = NULL;
     }
-    if (find_next_event_stmt) {
-        sqlite3_finalize(find_next_event_stmt);
-        find_next_event_stmt = NULL;
+    if (find_upcoming_events_stmt) {
+        sqlite3_finalize(find_upcoming_events_stmt);
+        find_upcoming_events_stmt = NULL;
     }
 }
 
@@ -74,6 +77,18 @@ guint scheduled_event_add(DVBRecorder *recorder, guint channel_id, guint64 time_
 
     if (rc != SQLITE_OK && rc != SQLITE_DONE)
         return 0;
+
+    if (time_end > time(NULL)) {
+        ScheduledEvent event;
+        event.id = 0;
+        event.channel_id = channel_id;
+        event.time_start = time_start;
+        event.time_end   = time_end;
+        event.recurring_parent = 0;
+        event.status = 0;
+
+        dvb_recorder_translate_scheduled_event(recorder, &event);
+    }
 
     return (guint)sqlite3_last_insert_rowid(dbhandler_db);
 }
@@ -123,35 +138,80 @@ ScheduledEvent *scheduled_event_get(DVBRecorder *recorder, guint id)
     return NULL;
 }
 
-void dvb_recorder_find_next_scheduled_event(DVBRecorder *recorder)
+void dvb_recorder_translate_scheduled_event(DVBRecorder *recorder, ScheduledEvent *event)
+{
+    TimedEvent *timed = NULL;
+
+    /* tune in 60 seconds before recording */
+    timed = timed_event_new(TIMED_EVENT_TUNE_IN, 0, event->time_start - 60);
+    ((TimedEventTuneIn *)timed)->channel_id = event->channel_id;
+
+    dvb_recorder_add_timed_event(recorder, timed);
+
+    /* record start */
+    timed = timed_event_new(TIMED_EVENT_RECORD_START, 0, event->time_start);
+    dvb_recorder_add_timed_event(recorder, timed);
+
+    timed = timed_event_new(TIMED_EVENT_RECORD_STOP, 0, event->time_end);
+    dvb_recorder_add_timed_event(recorder, timed);
+}
+
+void dvb_recorder_find_upcoming_scheduled_events(DVBRecorder *recorder)
 {
     g_return_if_fail(recorder != NULL);
 
     int rc;
     ScheduledEvent event;
 
-    if (find_next_event_stmt == NULL) {
-        rc = sqlite3_prepare_v2(dbhandler_db, "select * from schedule_events where event_end > ? order by event_start asc limit 1,1",
-                -1, &find_next_event_stmt, NULL);
+    if (find_upcoming_events_stmt == NULL) {
+        rc = sqlite3_prepare_v2(dbhandler_db, "select * from schedule_events where event_start > ? order by event_start asc",
+                -1, &find_upcoming_events_stmt, NULL);
         if (rc != SQLITE_OK) {
-            fprintf(stderr, "Could not create find next scheduled event statement.\n");
+            fprintf(stderr, "Could not create find upcoming scheduled event statement.\n");
             return;
         }
     }
 
-    sqlite3_bind_int64(find_next_event_stmt, 1, (gint64)time(NULL));
+    sqlite3_bind_int64(find_upcoming_events_stmt, 1, (gint64)time(NULL));
 
-    rc = sqlite3_step(find_next_event_stmt);
-    if (rc == SQLITE_ROW) {
-        event.id = (guint)sqlite3_column_int(find_next_event_stmt, 0);
-        event.time_start = (guint64)sqlite3_column_int64(find_next_event_stmt, 1);
-        event.time_end = (guint64)sqlite3_column_int64(find_next_event_stmt, 2);
-        event.channel_id = (guint)sqlite3_column_int64(find_next_event_stmt, 3);
-        event.status = sqlite3_column_int(find_next_event_stmt, 4);
-        event.recurring_parent = sqlite3_column_int(find_next_event_stmt, 5);
+    while ((rc = sqlite3_step(find_upcoming_events_stmt)) == SQLITE_ROW) {
+        event.id = (guint)sqlite3_column_int(find_upcoming_events_stmt, 0);
+        event.time_start = (guint64)sqlite3_column_int64(find_upcoming_events_stmt, 1);
+        event.time_end = (guint64)sqlite3_column_int64(find_upcoming_events_stmt, 2);
+        event.channel_id = (guint)sqlite3_column_int64(find_upcoming_events_stmt, 3);
+        event.status = sqlite3_column_int(find_upcoming_events_stmt, 4);
+        event.recurring_parent = sqlite3_column_int(find_upcoming_events_stmt, 5);
 
-        dvb_recorder_set_next_scheduled_event(recorder, &event);
+        dvb_recorder_translate_scheduled_event(recorder, &event);
     }
 
-    sqlite3_reset(find_next_event_stmt);
+    sqlite3_reset(find_upcoming_events_stmt);
+}
+
+void dvb_recorder_enable_scheduled_events(DVBRecorder *recorder, gboolean enable)
+{
+    g_return_if_fail(recorder != NULL);
+
+    dvb_recorder_timed_events_clear(recorder);
+
+    recorder->scheduled_recordings_enabled = enable ? 1 : 0;
+
+    if (enable) {
+        dvb_recorder_find_upcoming_scheduled_events(recorder);
+        if (!recorder->check_timed_events_timer_source) {
+            recorder->check_timed_events_timer_source =
+                g_timeout_add_seconds(30, (GSourceFunc)dvb_recorder_check_timed_events, recorder);
+        }
+    }
+    else if (recorder->check_timed_events_timer_source) {
+        g_source_remove(recorder->check_timed_events_timer_source);
+        recorder->check_timed_events_timer_source = 0;
+    }
+}
+
+gboolean dvb_recorder_scheduled_events_enabled(DVBRecorder *recorder)
+{
+    g_return_val_if_fail(recorder != NULL, FALSE);
+
+    return (gboolean)recorder->scheduled_recordings_enabled;
 }
