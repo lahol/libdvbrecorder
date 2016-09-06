@@ -53,10 +53,10 @@ guint scheduled_event_add(DVBRecorder *recorder, guint channel_id, guint64 time_
 guint scheduled_event_add_recurring(DVBRecorder *recorder, guint channel_id, ScheduleWeekday weekday, guint start_time, guint duration);
 
 typedef void (*ScheduledEventEnumProc)(ScheduledEvent *, gpointer);
-void scheduled_event_enum(DVBRecorder *recorder, ScheduledEventEnumProc callback, gpointer userdata);
+void scheduled_event_enum(ScheduledEventEnumProc callback, gpointer userdata);
 
 typedef void (*ScheduledEventRecurringEnumProc)(ScheduledEventRecurring *, gpointer);
-void scheduled_event_recurring_enum(DVBRecorder *recorder, ScheduledEventRecurringEnumProc callback, gpointer userdata);
+void scheduled_event_recurring_enum(ScheduledEventRecurringEnumProc callback, gpointer userdata);
 
 ScheduledEvent *scheduled_event_get(DVBRecorder *recorder, guint id);
 

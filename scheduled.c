@@ -78,9 +78,11 @@ guint scheduled_event_add(DVBRecorder *recorder, guint channel_id, guint64 time_
     if (rc != SQLITE_OK && rc != SQLITE_DONE)
         return 0;
 
+    guint last_id = (guint)sqlite3_last_insert_rowid(dbhandler_db);
+
     if (time_end > time(NULL)) {
         ScheduledEvent event;
-        event.id = 0;
+        event.id = last_id;
         event.channel_id = channel_id;
         event.time_start = time_start;
         event.time_end   = time_end;
@@ -90,7 +92,7 @@ guint scheduled_event_add(DVBRecorder *recorder, guint channel_id, guint64 time_
         dvb_recorder_translate_scheduled_event(recorder, &event);
     }
 
-    return (guint)sqlite3_last_insert_rowid(dbhandler_db);
+    return last_id;
 }
 
 guint scheduled_event_add_recurring(DVBRecorder *recorder, guint channel_id, ScheduleWeekday weekday, guint start_time, guint duration)
@@ -98,9 +100,8 @@ guint scheduled_event_add_recurring(DVBRecorder *recorder, guint channel_id, Sch
     return 0;
 }
 
-void scheduled_event_enum(DVBRecorder *recorder, ScheduledEventEnumProc callback, gpointer userdata)
+void scheduled_event_enum(ScheduledEventEnumProc callback, gpointer userdata)
 {
-    g_return_if_fail(recorder != NULL);
     g_return_if_fail(callback != NULL);
 
     int rc;
@@ -129,7 +130,7 @@ void scheduled_event_enum(DVBRecorder *recorder, ScheduledEventEnumProc callback
     sqlite3_reset(enum_event_stmt);
 }
 
-void scheduled_event_recurring_enum(DVBRecorder *recorder, ScheduledEventRecurringEnumProc callback, gpointer userdata)
+void scheduled_event_recurring_enum(ScheduledEventRecurringEnumProc callback, gpointer userdata)
 {
 }
 
@@ -143,16 +144,16 @@ void dvb_recorder_translate_scheduled_event(DVBRecorder *recorder, ScheduledEven
     TimedEvent *timed = NULL;
 
     /* tune in 60 seconds before recording */
-    timed = timed_event_new(TIMED_EVENT_TUNE_IN, 0, event->time_start - 60);
+    timed = timed_event_new(TIMED_EVENT_TUNE_IN, event->id, event->time_start - 60);
     ((TimedEventTuneIn *)timed)->channel_id = event->channel_id;
 
     dvb_recorder_add_timed_event(recorder, timed);
 
     /* record start */
-    timed = timed_event_new(TIMED_EVENT_RECORD_START, 0, event->time_start);
+    timed = timed_event_new(TIMED_EVENT_RECORD_START, event->id, event->time_start);
     dvb_recorder_add_timed_event(recorder, timed);
 
-    timed = timed_event_new(TIMED_EVENT_RECORD_STOP, 0, event->time_end);
+    timed = timed_event_new(TIMED_EVENT_RECORD_STOP, event->id, event->time_end);
     dvb_recorder_add_timed_event(recorder, timed);
 }
 
