@@ -50,6 +50,7 @@ gint scheduled_events_db_init(void);
 void scheduled_events_db_cleanup(void);
 
 guint scheduled_event_add(DVBRecorder *recorder, guint channel_id, guint64 time_start, guint64 time_end);
+void scheduled_event_remove(DVBRecorder *recorder, guint event_id);
 guint scheduled_event_add_recurring(DVBRecorder *recorder, guint channel_id, ScheduleWeekday weekday, guint start_time, guint duration);
 
 typedef void (*ScheduledEventEnumProc)(ScheduledEvent *, gpointer);

@@ -7,6 +7,7 @@
 extern sqlite3 *dbhandler_db;
 
 sqlite3_stmt *add_event_stmt = NULL;
+sqlite3_stmt *remove_event_stmt = NULL;
 sqlite3_stmt *enum_event_stmt = NULL;
 sqlite3_stmt *find_upcoming_events_stmt = NULL;
 
@@ -39,6 +40,10 @@ void scheduled_events_db_cleanup(void)
     if (add_event_stmt) {
         sqlite3_finalize(add_event_stmt);
         add_event_stmt = NULL;
+    }
+    if (remove_event_stmt) {
+        sqlite3_finalize(remove_event_stmt);
+        remove_event_stmt = NULL;
     }
     if (enum_event_stmt) {
         sqlite3_finalize(enum_event_stmt);
@@ -93,6 +98,29 @@ guint scheduled_event_add(DVBRecorder *recorder, guint channel_id, guint64 time_
     }
 
     return last_id;
+}
+
+void scheduled_event_remove(DVBRecorder *recorder, guint event_id)
+{
+    g_return_if_fail(recorder != NULL);
+    g_return_if_fail(event_id != 0);
+
+    int rc;
+
+    if (remove_event_stmt == NULL) {
+        rc = sqlite3_prepare_v2(dbhandler_db,
+                "delete from schedule_events where event_id=?;",
+                -1, &remove_event_stmt, NULL);
+        if (rc != SQLITE_OK)
+            return;
+    }
+
+    sqlite3_bind_int64(remove_event_stmt, 1, (gint64)event_id);
+
+    rc = sqlite3_step(remove_event_stmt);
+    sqlite3_reset(remove_event_stmt);
+
+    dvb_recorder_enable_scheduled_events(recorder, recorder->scheduled_recordings_enabled);
 }
 
 guint scheduled_event_add_recurring(DVBRecorder *recorder, guint channel_id, ScheduleWeekday weekday, guint start_time, guint duration)
