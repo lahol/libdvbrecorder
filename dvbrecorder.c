@@ -14,32 +14,9 @@
 #include "channels.h"
 #include "channel-db.h"
 #include "logging.h"
-
-struct _DVBRecorder {
-    DVBRecorderEventCallback event_cb;
-    gpointer event_data;
-
-    DVBRecorderLoggerProc logger;
-    gpointer logger_data;
-
-    gboolean video_source_enabled;
-
-    DVBReader *reader;
-
-    int video_pipe[2];
-
-    guint64 current_channel_id;
-
-    int record_fd;
-    gchar *record_filename;
-    gchar *record_filename_pattern;
-    gchar *capture_dir;
-    DVBRecordStatus record_status;
-    time_t record_start;
-    time_t record_end;             /* keep data if stream was stopped, for last info */
-    gsize record_size;
-    DVBFilterType record_filter;
-};
+#include "scheduled.h"
+#include "dvbrecorder-internal.h"
+#include "timed-events.h"
 
 void dvb_recorder_event_callback(DVBRecorderEvent *event, gpointer userdata)
 {
@@ -132,6 +109,8 @@ void dvb_recorder_destroy(DVBRecorder *recorder)
     g_free(recorder->record_filename);
 
     dvb_reader_destroy(recorder->reader);
+
+    dvb_recorder_timed_events_clear(recorder);
 
     g_free(recorder);
 }
@@ -537,4 +516,5 @@ float dvb_recorder_get_signal_strength(DVBRecorder *recorder)
         return dvb_reader_query_signal_strength(recorder->reader);
     return -1.0f;
 }
+
 

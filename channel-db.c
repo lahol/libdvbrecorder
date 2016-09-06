@@ -98,6 +98,9 @@ void channel_db_dispose(void)
         sqlite3_finalize(update_channel_stmt);
         update_channel_stmt = NULL;
     }
+
+    scheduled_events_db_cleanup();
+
     if (dbhandler_db) {
         sqlite3_close(dbhandler_db);
         dbhandler_db = NULL;
