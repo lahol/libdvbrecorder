@@ -14,6 +14,8 @@
 #include "channels.h"
 #include "channel-db.h"
 #include "logging.h"
+#include "scheduled.h"
+#include "dvbrecorder-internal.h"
 
 struct _DVBRecorder {
     DVBRecorderEventCallback event_cb;
@@ -39,6 +41,9 @@ struct _DVBRecorder {
     time_t record_end;             /* keep data if stream was stopped, for last info */
     gsize record_size;
     DVBFilterType record_filter;
+
+    ScheduledEvent *scheduled_event_next;
+    guint scheduled_recordings_enabled : 1;
 };
 
 void dvb_recorder_event_callback(DVBRecorderEvent *event, gpointer userdata)
@@ -132,6 +137,8 @@ void dvb_recorder_destroy(DVBRecorder *recorder)
     g_free(recorder->record_filename);
 
     dvb_reader_destroy(recorder->reader);
+
+    g_free(recorder->scheduled_event_next);
 
     g_free(recorder);
 }
@@ -538,3 +545,46 @@ float dvb_recorder_get_signal_strength(DVBRecorder *recorder)
     return -1.0f;
 }
 
+void dvb_recorder_enable_scheduled_events(DVBRecorder *recorder, gboolean enable)
+{
+    g_return_if_fail(recorder != NULL);
+
+    dvb_recorder_set_next_scheduled_event(recorder, NULL);
+
+    recorder->scheduled_recordings_enabled = enable ? 1 : 0;
+
+    if (enable)
+        dvb_recorder_find_next_scheduled_event(DVBRecorder *recorder);
+}
+
+gboolean dvb_recorder_scheduled_events_enabled(DVBRecorder *recorder)
+{
+    g_return_val_if_fail(recorder != NULL, FALSE);
+
+    return (gboolean)recorder->scheduled_recordings_enabled;
+}
+
+void dvb_recorder_set_next_scheduled_event(DVBRecorder *recorder, ScheduledEvent *event)
+{
+    g_return_if_fail(recorder != NULL);
+
+    g_free(recorder->scheduled_event_next);
+    recorder->scheduled_event_next = NULL;
+
+    if (recorder->scheduled_recordings_enabled) {
+        if (event) {
+            recorder->scheduled_event_next = g_malloc(sizeof(ScheduledEvent));
+            *(recorder->scheduled_event_next) = *event;
+        }
+    }
+}
+
+ScheduledEvent *dvb_recorder_get_next_scheduled_event(DVBRecorder *recorder)
+{
+    g_return_val_if_fail(recorder != NULL, NULL);
+
+    if (!recorder->scheduled_recordings_enabled)
+        return NULL;
+
+    return recorder->scheduled_event_next;
+}
