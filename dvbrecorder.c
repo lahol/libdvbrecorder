@@ -28,6 +28,7 @@ void dvb_recorder_event_callback(DVBRecorderEvent *event, gpointer userdata)
         case DVB_RECORDER_EVENT_STREAM_STATUS_CHANGED:
         case DVB_RECORDER_EVENT_EIT_CHANGED:
         case DVB_RECORDER_EVENT_SDT_CHANGED:
+        case DVB_RECORDER_EVENT_CHANNEL_CHANGED:
             recorder->event_cb(event, recorder->event_data);
             break;
         case DVB_RECORDER_EVENT_LISTENER_STATUS_CHANGED:
@@ -213,6 +214,11 @@ gboolean dvb_recorder_set_channel(DVBRecorder *recorder, guint64 channel_id)
                         chdata->sid);             /* program number */
 
         recorder->current_channel_id = channel_id;
+
+        dvb_recorder_event_send(DVB_RECORDER_EVENT_CHANNEL_CHANGED,
+                recorder->event_cb, recorder->event_data,
+                "channel-id", channel_id,
+                NULL, NULL);
 
         return TRUE;
     }

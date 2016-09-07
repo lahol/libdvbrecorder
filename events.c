@@ -25,6 +25,8 @@ void dvb_recorder_event_eit_changed_set_property(DVBRecorderEvent *event,
         const gchar *prop_name, const gpointer prop_value);
 void dvb_recorder_event_listener_status_changed_set_property(DVBRecorderEvent *event,
         const gchar *prop_name, const gpointer prop_value);
+void dvb_recorder_event_channel_changed_set_property(DVBRecorderEvent *event,
+        const gchar *prop_name, const gpointer prop_value);
 
 static struct DREventClass event_classes[] = {
     { DVB_RECORDER_EVENT_TUNED, sizeof(DVBRecorderEventTuned),
@@ -47,6 +49,8 @@ static struct DREventClass event_classes[] = {
         dvb_recorder_event_listener_status_changed_set_property, NULL },
     { DVB_RECORDER_EVENT_VIDEO_DIED, sizeof(DVBRecorderEventVideoDied),
         NULL, NULL },
+    { DVB_RECORDER_EVENT_CHANNEL_CHANGED, sizeof(DVBRecorderEventChannelChanged),
+        dvb_recorder_event_channel_changed_set_property, NULL },
 };
 
 struct DREventClass *dvb_recorder_event_get_class(DVBRecorderEventType type)
@@ -262,6 +266,18 @@ void dvb_recorder_event_listener_status_changed_set_property(DVBRecorderEvent *e
     }
     else {
         fprintf(stderr, "Unknown property: %s\n", prop_name);
+    }
+}
+
+void dvb_recorder_event_channel_changed_set_property(DVBRecorderEvent *event,
+        const gchar *prop_name, const gpointer prop_value)
+{
+    if (!event)
+        return;
+    DVBRecorderEventChannelChanged *ev  = (DVBRecorderEventChannelChanged *)event;
+
+    if (g_strcmp0(prop_name, "channel-id") == 0) {
+        ev->channel_id = GPOINTER_TO_UINT(prop_value);
     }
 }
 
