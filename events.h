@@ -13,6 +13,7 @@ typedef enum {
     DVB_RECORDER_EVENT_SDT_CHANGED,
     DVB_RECORDER_EVENT_LISTENER_STATUS_CHANGED,
     DVB_RECORDER_EVENT_VIDEO_DIED,
+    DVB_RECORDER_EVENT_CHANNEL_CHANGED,
     DVB_RECORDER_EVENT_COUNT
 } DVBRecorderEventType;
 
@@ -100,6 +101,11 @@ typedef struct {
 typedef struct {
     DVBRecorderEvent parent;
 } DVBRecorderEventVideoDied;
+
+typedef struct {
+    DVBRecorderEvent parent;
+    guint channel_id;
+} DVBRecorderEventChannelChanged;
 
 typedef void (*DVBRecorderEventCallback)(DVBRecorderEvent *, gpointer);
 void dvb_recorder_event_send(DVBRecorderEventType type, DVBRecorderEventCallback cb, gpointer data, ...);
