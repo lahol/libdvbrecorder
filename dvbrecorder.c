@@ -227,6 +227,13 @@ gboolean dvb_recorder_set_channel(DVBRecorder *recorder, guint64 channel_id)
     }
 }
 
+guint64 dvb_recorder_get_current_channel(DVBRecorder *recorder)
+{
+    g_return_val_if_fail(recorder != NULL, 0);
+
+    return recorder->current_channel_id;
+}
+
 void dvb_recorder_stop(DVBRecorder *recorder)
 {
     FLOG("\n");

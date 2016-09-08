@@ -2,6 +2,7 @@
 #include "dvbrecorder.h"
 #include "dvbrecorder-internal.h"
 #include <stdio.h>
+#include "utils.h"
 
 static gint timed_event_compare_time(const TimedEvent *a, const TimedEvent *b)
 {
