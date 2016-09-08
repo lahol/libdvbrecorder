@@ -3,9 +3,20 @@
 #include "dvbrecorder-internal.h"
 #include <stdio.h>
 
-gint timed_event_compare_time(const TimedEvent *a, const TimedEvent *b)
+static gint timed_event_compare_time(const TimedEvent *a, const TimedEvent *b)
 {
     return (gint)(a->event_time - b->event_time);
+}
+
+static gint timed_event_compare_group(const TimedEvent *a, gconstpointer data)
+{
+    guint32 group_id = GPOINTER_TO_UINT(data);
+
+    if (a->group_id < group_id)
+        return -1;
+    if (a->group_id > group_id)
+        return 1;
+    return 0;
 }
 
 void dvb_recorder_add_timed_event(DVBRecorder *recorder, TimedEvent *event)
@@ -101,6 +112,15 @@ void dvb_recorder_timed_events_clear(DVBRecorder *recorder)
         g_source_remove(recorder->scheduled_event_source);
         recorder->scheduled_event_source = 0;
     }
+}
+
+void dvb_recorder_timed_events_remove_group(DVBRecorder *recorder, guint32 group_id)
+{
+    g_return_if_fail(recorder != NULL);
+    recorder->timed_events = util_list_free_all_custom(recorder->timed_events,
+                                                       GUINT_TO_POINTER(group_id),
+                                                       (GCompareFunc)timed_event_compare_group,
+                                                       (GDestroyNotify)g_free);
 }
 
 TimedEvent *timed_event_new(TimedEventType type, guint32 group_id, time_t event_time)

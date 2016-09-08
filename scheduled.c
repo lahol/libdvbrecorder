@@ -7,12 +7,13 @@
 extern sqlite3 *dbhandler_db;
 
 sqlite3_stmt *add_event_stmt = NULL;
+sqlite3_stmt *update_event_stmt = NULL;
 sqlite3_stmt *remove_event_stmt = NULL;
 sqlite3_stmt *enum_event_stmt = NULL;
 sqlite3_stmt *find_upcoming_events_stmt = NULL;
+sqlite3_stmt *check_conflict_stmt = NULL;
 
-void dvb_recorder_translate_scheduled_event(DVBRecorder *recorder, ScheduledEvent *event);
-void scheduled_events_check_next_event(DVBRecorder *recorder);
+static void dvb_recorder_translate_scheduled_event(DVBRecorder *recorder, ScheduledEvent *event);
 
 gint scheduled_events_db_init(void)
 {
@@ -37,64 +38,85 @@ gint scheduled_events_db_init(void)
 
 void scheduled_events_db_cleanup(void)
 {
-    if (add_event_stmt) {
-        sqlite3_finalize(add_event_stmt);
-        add_event_stmt = NULL;
-    }
-    if (remove_event_stmt) {
-        sqlite3_finalize(remove_event_stmt);
-        remove_event_stmt = NULL;
-    }
-    if (enum_event_stmt) {
-        sqlite3_finalize(enum_event_stmt);
-        enum_event_stmt = NULL;
-    }
-    if (find_upcoming_events_stmt) {
-        sqlite3_finalize(find_upcoming_events_stmt);
-        find_upcoming_events_stmt = NULL;
-    }
+
+#define FINALIZE_STMT(s) {\
+    if (s ## _stmt) {\
+        sqlite3_finalize(s ## _stmt);\
+        s ## _stmt = NULL;\
+    }\
 }
 
-guint scheduled_event_add(DVBRecorder *recorder, guint channel_id, guint64 time_start, guint64 time_end)
+    FINALIZE_STMT(add_event);
+    FINALIZE_STMT(update_event);
+    FINALIZE_STMT(remove_event);
+    FINALIZE_STMT(enum_event);
+    FINALIZE_STMT(find_upcoming_events);
+    FINALIZE_STMT(check_conflict);
+
+#undef FINALIZE_STMT
+}
+
+guint scheduled_event_set(DVBRecorder *recorder, ScheduledEvent *event)
 {
     g_return_val_if_fail(recorder != NULL, 0);
+    g_return_val_if_fail(event != NULL, 0);
 
     int rc;
+    sqlite3_stmt *stmt = NULL;
 
-    if (add_event_stmt == NULL) {
-        rc = sqlite3_prepare_v2(dbhandler_db,
-                "insert into schedule_events(event_start, event_end, chnl_id, status, recurring_parent) "
-                "values (?,?,?,?,?);",
-                -1, &add_event_stmt, NULL);
-        if (rc != SQLITE_OK)
-            return 0;
+    if (event->time_start >= event->time_end)
+        return 0;
+
+    if (event->id == 0) {
+        if (add_event_stmt == NULL) {
+            rc = sqlite3_prepare_v2(dbhandler_db,
+                    "insert into schedule_events(event_start, event_end, chnl_id, status, recurring_parent) "
+                    "values (?,?,?,?,?);",
+                    -1, &add_event_stmt, NULL);
+            if (rc != SQLITE_OK)
+                return 0;
+        }
+        stmt = add_event_stmt;
+    }
+    else {
+        if (update_event_stmt == NULL) {
+            rc = sqlite3_prepare_v2(dbhandler_db,
+                    "update schedule_events set event_start=?, event_end=?, chnl_id=?, status=?, recurring_parent=? "
+                    "where event_id=?;",
+                    -1, &update_event_stmt, NULL);
+            if (rc != SQLITE_OK)
+                return 0;
+        }
+        stmt = update_event_stmt;
+
+        sqlite3_bind_int(stmt, 6, event->id);
     }
 
     /* fixme: take care of signedness */
-    sqlite3_bind_int64(add_event_stmt, 1, (gint64)time_start);
-    sqlite3_bind_int64(add_event_stmt, 2, (gint64)time_end);
-    sqlite3_bind_int64(add_event_stmt, 3, (gint64)channel_id);
-    sqlite3_bind_int(add_event_stmt, 4, 0);
-    sqlite3_bind_int(add_event_stmt, 5, 0);
+    sqlite3_bind_int64(stmt, 1, (gint64)event->time_start);
+    sqlite3_bind_int64(stmt, 2, (gint64)event->time_end);
+    sqlite3_bind_int64(stmt, 3, (gint64)event->channel_id);
+    sqlite3_bind_int(stmt, 4, event->status);
+    sqlite3_bind_int(stmt, 5, event->recurring_parent);
 
-    rc = sqlite3_step(add_event_stmt);
-    sqlite3_reset(add_event_stmt);
+    rc = sqlite3_step(stmt);
+    sqlite3_reset(stmt);
 
     if (rc != SQLITE_OK && rc != SQLITE_DONE)
         return 0;
 
-    guint last_id = (guint)sqlite3_last_insert_rowid(dbhandler_db);
+    guint last_id = event->id;
+    
+    if (last_id) {
+        dvb_recorder_timed_events_remove_group(recorder, last_id);
+    }
+    else {
+        last_id = (guint)sqlite3_last_insert_rowid(dbhandler_db);
+        event->id = last_id;
+    }
 
-    if (time_end > time(NULL)) {
-        ScheduledEvent event;
-        event.id = last_id;
-        event.channel_id = channel_id;
-        event.time_start = time_start;
-        event.time_end   = time_end;
-        event.recurring_parent = 0;
-        event.status = 0;
-
-        dvb_recorder_translate_scheduled_event(recorder, &event);
+    if (event->time_end > time(NULL)) {
+        dvb_recorder_translate_scheduled_event(recorder, event);
     }
 
     return last_id;
@@ -121,6 +143,39 @@ void scheduled_event_remove(DVBRecorder *recorder, guint event_id)
     sqlite3_reset(remove_event_stmt);
 
     dvb_recorder_enable_scheduled_events(recorder, recorder->scheduled_recordings_enabled);
+}
+
+guint scheduled_event_check_conflict(guint64 time_start, guint64 time_end)
+{
+    if (time_start >= time_end)
+        return 0;
+
+    int rc;
+    guint results = 0;
+
+    if (check_conflict_stmt == NULL) {
+        rc = sqlite3_prepare_v2(dbhandler_db,
+                "select count(*) from schedule_events where event_start <= ? and event_end >= ?",
+                -1, &check_conflict_stmt, NULL);
+        if (rc != SQLITE_OK)
+            return 0;
+    }
+
+    sqlite3_bind_int64(check_conflict_stmt, 1, (gint64)time_end);
+    sqlite3_bind_int64(check_conflict_stmt, 2, (gint64)time_start);
+
+    rc = sqlite3_step(check_conflict_stmt);
+
+    if (rc != SQLITE_ROW) {
+        goto done;
+    }
+
+    results = (guint)sqlite3_column_int(check_conflict_stmt, 0);
+    
+done:
+    sqlite3_reset(check_conflict_stmt);
+
+    return results;
 }
 
 guint scheduled_event_add_recurring(DVBRecorder *recorder, guint channel_id, ScheduleWeekday weekday, guint start_time, guint duration)
@@ -167,7 +222,7 @@ ScheduledEvent *scheduled_event_get(DVBRecorder *recorder, guint id)
     return NULL;
 }
 
-void dvb_recorder_translate_scheduled_event(DVBRecorder *recorder, ScheduledEvent *event)
+static void dvb_recorder_translate_scheduled_event(DVBRecorder *recorder, ScheduledEvent *event)
 {
     TimedEvent *timed = NULL;
 

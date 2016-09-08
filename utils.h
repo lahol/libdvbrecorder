@@ -11,3 +11,5 @@ time_t util_convert_datetime(guint64 datetime, struct tm **tm);
 
 typedef gpointer (*UtilDataDupFunc)(gpointer data);
 GList *util_dup_list_deep(GList *list, UtilDataDupFunc datadup);
+GList *util_list_remove_all_custom(GList *list, gconstpointer data, GCompareFunc func);
+GList *util_list_free_all_custom(GList *list, gconstpointer data, GCompareFunc func, GDestroyNotify destroy);
