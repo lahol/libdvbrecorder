@@ -37,6 +37,7 @@ gboolean dvb_recorder_get_logger(DVBRecorder *recorder, DVBRecorderLoggerProc *l
 
 GList *dvb_recorder_get_channel_list(DVBRecorder *recorder);
 gboolean dvb_recorder_set_channel(DVBRecorder *recorder, guint64 channel_id);
+guint64 dvb_recorder_get_current_channel(DVBRecorder *recorder);
 gboolean dvb_recorder_record_start(DVBRecorder *recorder);
 void dvb_recorder_record_stop(DVBRecorder *recorder);
 void dvb_recorder_stop(DVBRecorder *recorder);

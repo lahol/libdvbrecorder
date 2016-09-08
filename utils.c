@@ -144,3 +144,36 @@ GList *util_dup_list_deep(GList *list, UtilDataDupFunc datadup)
 
     return g_list_reverse(dup);
 }
+
+GList *util_list_remove_all_custom(GList *list, gconstpointer data, GCompareFunc func)
+{
+    GList *next = NULL;
+    GList *current = list;
+
+    while (current) {
+        next = current->next;
+        if (func(current->data, data) == 0) {
+            list = g_list_remove_link(list, current);
+        }
+        current = next;
+    }
+
+    return list;
+}
+
+GList *util_list_free_all_custom(GList *list, gconstpointer data, GCompareFunc func, GDestroyNotify destroy)
+{
+    GList *next = NULL;
+    GList *current = list;
+
+    while (current) {
+        next = current->next;
+        if (func(current->data, data) == 0) {
+            destroy(current->data);
+            list = g_list_remove_link(list, current);
+        }
+        current = next;
+    }
+
+    return list;
+}

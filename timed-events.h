@@ -38,3 +38,4 @@ void dvb_recorder_add_timed_event(DVBRecorder *recorder, TimedEvent *event);
 /* to be called every 60 seconds to check if the next timed event should be run soon */
 gboolean dvb_recorder_check_timed_events(DVBRecorder *recorder);
 void dvb_recorder_timed_events_clear(DVBRecorder *recorder);
+void dvb_recorder_timed_events_remove_group(DVBRecorder *recorder, guint32 group_id);
