@@ -8,6 +8,7 @@ extern sqlite3 *dbhandler_db;
 
 sqlite3_stmt *add_event_stmt = NULL;
 sqlite3_stmt *update_event_stmt = NULL;
+sqlite3_stmt *find_event_stmt = NULL;
 sqlite3_stmt *remove_event_stmt = NULL;
 sqlite3_stmt *enum_event_stmt = NULL;
 sqlite3_stmt *find_upcoming_events_stmt = NULL;
@@ -52,6 +53,7 @@ void scheduled_events_db_cleanup(void)
     FINALIZE_STMT(enum_event);
     FINALIZE_STMT(find_upcoming_events);
     FINALIZE_STMT(check_conflict);
+    FINALIZE_STMT(find_event);
 
 #undef FINALIZE_STMT
 }
@@ -217,9 +219,42 @@ void scheduled_event_recurring_enum(ScheduledEventRecurringEnumProc callback, gp
 {
 }
 
-ScheduledEvent *scheduled_event_get(DVBRecorder *recorder, guint id)
+ScheduledEvent *scheduled_event_get(guint id)
 {
-    return NULL;
+    if (id == 0)
+        return NULL;
+    int rc;
+
+    if (find_event_stmt == NULL) {
+        rc = sqlite3_prepare_v2(dbhandler_db,
+                "select * from schedule_events where event_id = ?",
+                -1, &find_event_stmt, NULL);
+        if (rc != SQLITE_OK)
+            return NULL;
+    }
+
+    sqlite3_bind_int64(find_event_stmt, 1, (gint64)id);
+
+    rc = sqlite3_step(find_event_stmt);
+
+    ScheduledEvent *result = NULL;
+
+    if (rc != SQLITE_ROW)
+        goto done;
+
+    result = g_malloc(sizeof(ScheduledEvent));
+
+    result->id = (guint)sqlite3_column_int(find_event_stmt, 0);
+    result->time_start = (guint64)sqlite3_column_int64(find_event_stmt, 1);
+    result->time_end = (guint64)sqlite3_column_int64(find_event_stmt, 2);
+    result->channel_id = (guint)sqlite3_column_int64(find_event_stmt, 3);
+    result->status = sqlite3_column_int(find_event_stmt, 4);
+    result->recurring_parent = sqlite3_column_int(find_event_stmt, 5);
+
+done:
+    sqlite3_reset(find_event_stmt);
+
+    return result;
 }
 
 static void dvb_recorder_translate_scheduled_event(DVBRecorder *recorder, ScheduledEvent *event)

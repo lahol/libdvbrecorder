@@ -60,5 +60,5 @@ void scheduled_event_enum(ScheduledEventEnumProc callback, gpointer userdata);
 typedef void (*ScheduledEventRecurringEnumProc)(ScheduledEventRecurring *, gpointer);
 void scheduled_event_recurring_enum(ScheduledEventRecurringEnumProc callback, gpointer userdata);
 
-ScheduledEvent *scheduled_event_get(DVBRecorder *recorder, guint id);
+ScheduledEvent *scheduled_event_get(guint id);
 
