@@ -184,6 +184,11 @@ static int dvb_tuner_set_disecq(DVBTuner *tuner)
         4                  /* length of data */
     };
 
+    const struct timespec slp = {
+        .tv_sec = 0,
+        .tv_nsec = 15e6
+    };
+
     cmd.msg[3] = 0xf0 | ((tuner->sat_no << 2) & 0x0f)
                       | ((tuner->polarization ? 1 : 0) << 1)
                       | (tuner->tone ? 1 : 0);
@@ -202,7 +207,8 @@ static int dvb_tuner_set_disecq(DVBTuner *tuner)
         return -1;
     }
 
-    usleep(15000);
+/*    usleep(15000);*/
+    nanosleep(&slp, NULL);
 
     fprintf(stderr, "FE_DISEQC_SEND_MASTER_CMD\n");
     if (ioctl(tuner->frontend_fd, FE_DISEQC_SEND_MASTER_CMD, &cmd) < 0) {
@@ -210,7 +216,8 @@ static int dvb_tuner_set_disecq(DVBTuner *tuner)
         return -1;
     }
 
-    usleep(15000);
+/*    usleep(15000);*/
+    nanosleep(&slp, NULL);
 
     fprintf(stderr, "FE_DISEQC_SEND_BURST\n");
     if (ioctl(tuner->frontend_fd, FE_DISEQC_SEND_BURST,
@@ -219,7 +226,8 @@ static int dvb_tuner_set_disecq(DVBTuner *tuner)
         return -1;
     }
 
-    usleep(15000);
+/*    usleep(15000);*/
+    nanosleep(&slp, NULL);
 
     fprintf(stderr, "FE_SET_TONE\n");
     if (ioctl(tuner->frontend_fd, FE_SET_TONE,
@@ -272,6 +280,11 @@ static int dvb_tuner_do_tune(DVBTuner *tuner)
     struct timeval time_now;
     struct timeval time_timeout;
 
+    const struct timespec slp = {
+        .tv_sec = 0,
+        .tv_nsec = 1e7
+    };
+
     gettimeofday(&time_timeout, NULL);
     time_timeout.tv_sec += 5; /* five seconds timeout */
 
@@ -295,7 +308,9 @@ static int dvb_tuner_do_tune(DVBTuner *tuner)
             return -1;
         }
 
-        usleep(10000);
+        /*usleep(10000);*/
+        fprintf(stderr, "no lock or timeout\n");
+        nanosleep(&slp, NULL);
     } while (!(status & FE_TIMEDOUT));
 
     /* xine: read tuner status (log only) */
