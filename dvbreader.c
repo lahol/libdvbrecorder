@@ -977,9 +977,11 @@ void dvb_reader_dvbpsi_pmt_cb(DVBReader *reader, dvbpsi_pmt_t *pmt)
     dvbpsi_pmt_es_t *stream;
     DVBFilterType type;
     for (stream = pmt->p_first_es; stream; stream = stream->p_next) {
+        /* iso13818 table 2-29 */
         switch (stream->i_type) {
             case 0x01:
             case 0x02:
+            case 0x1b:
                 type = DVB_FILTER_VIDEO;
                 break;
             case 0x03:
