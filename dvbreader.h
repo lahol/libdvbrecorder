@@ -31,6 +31,9 @@ void dvb_reader_tune(DVBReader *reader,
                      guint8  polarization,
                      guint8  sat_no,
                      guint32 symbol_rate,
+                     guint8 delivery_system,
+                     guint16 modulation,
+                     guint16 roll_off,
                      guint16 program_number);
 
 void dvb_reader_start(DVBReader *reader);

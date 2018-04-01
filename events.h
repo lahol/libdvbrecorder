@@ -64,6 +64,9 @@ typedef struct {
     guint32 frequency;
     guint8 polarization;
     guint8 sat_no;
+    guint8 delivery_system;
+    guint16 modulation;
+    guint16 roll_off;
     guint32 symbol_rate;
     guint16 program_number;
 } DVBRecorderEventTuneIn;

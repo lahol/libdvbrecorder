@@ -211,6 +211,9 @@ gboolean dvb_recorder_set_channel(DVBRecorder *recorder, guint64 channel_id)
                         chdata->polarization == CHNL_POLARIZATION_HORIZONTAL ? 1 : 0,  /* polarization */
                         0,                        /* sat number */
                         chdata->srate,            /* symbol rate */
+                        chdata->delivery_system,  /* delivery system */
+                        chdata->modulation,       /* modulation */
+                        chdata->roll_off,         /* roll off */
                         chdata->sid);             /* program number */
 
         recorder->current_channel_id = channel_id;
