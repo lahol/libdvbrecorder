@@ -91,6 +91,21 @@ void channel_data_parse_vdr_parameter(ChannelData *channel)
                 channel->polarization = CHNL_POLARIZATION_RIGHT;
                 ++ptr;
                 break;
+            case 'S':
+            case 's':
+                ++ptr;
+                channel->delivery_system = strtoul(ptr, &ptr, 10);
+                break;
+            case 'M':
+            case 'm':
+                ++ptr;
+                channel->modulation = strtoul(ptr, &ptr, 10);
+                break;
+            case 'O':
+            case 'o':
+                ++ptr;
+                channel->roll_off = strtoul(ptr, &ptr, 10);
+                break;
             default:
                 ++ptr;
                 strtoul(ptr, &ptr, 10); /* read arguments */

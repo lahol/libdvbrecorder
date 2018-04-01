@@ -21,6 +21,9 @@ typedef struct {
     guint32 frequency;     /* Frequency MHz for DVB-S*/
     gchar *parameter;      /* Parameter @see parse_vdr_param */
     ChannelPolarization polarization; /* Polarization */
+    guint32 delivery_system; /* Delivery system (0: first, 1: second generation) */
+    guint16 modulation;
+    guint16 roll_off;
     gchar *signalsource;   /* Source, e.g. S19E2 */
     guint32 srate;         /* Symbolrate */
     gchar *vpid;           /* Video-PID */

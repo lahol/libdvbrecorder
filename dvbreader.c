@@ -530,6 +530,9 @@ void dvb_reader_tune(DVBReader *reader,
                      guint8  polarization,
                      guint8  sat_no,
                      guint32 symbol_rate,
+                     guint8 delivery_system,
+                     guint16 modulation,
+                     guint16 roll_off,
                      guint16 program_number)
 {
     FLOG("\n");
@@ -544,6 +547,9 @@ void dvb_reader_tune(DVBReader *reader,
                                                      "sat_no", sat_no,
                                                      "symbol_rate", symbol_rate,
                                                      "program_number", program_number,
+                                                     "delivery_system", delivery_system,
+                                                     "modulation", modulation,
+                                                     "roll_off", roll_off,
                                                      NULL, NULL);
     dvb_reader_push_event(reader, event);
 }
@@ -671,7 +677,8 @@ void dvb_reader_event_handle_tune_in(DVBReader *reader, DVBRecorderEventTuneIn *
     /* FIXME: make this cancellable */
     LOG(reader->parent_obj, "[lib] dvb_reader_event_handle_tune_in frequency: %" PRIu32 ", pol: %d, srate: %d\n", event->frequency, event->polarization, event->symbol_rate);
     rc = dvb_tuner_tune(reader->tuner, event->frequency, event->polarization, event->sat_no,
-                                       event->symbol_rate, NULL, 0);
+                                       event->symbol_rate, event->delivery_system, event->modulation,
+                                       event->roll_off, NULL, 0);
     if (rc == 0) {
         reader->frequency = event->frequency;
         reader->polarization = event->polarization;

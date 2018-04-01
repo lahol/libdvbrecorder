@@ -14,6 +14,9 @@ int dvb_tuner_tune(DVBTuner *tuner,
                    uint8_t polarization,
                    uint8_t sat_no,
                    uint32_t symbolrate,
+                   uint32_t delivery_system,
+                   uint32_t modulation,
+                   uint32_t roll_off,
                    uint16_t *pids,
                    size_t npids);
 void dvb_tuner_add_pid(DVBTuner *tuner, uint16_t pid);

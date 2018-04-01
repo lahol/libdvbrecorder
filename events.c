@@ -206,6 +206,15 @@ void dvb_recorder_event_tune_in_set_property(DVBRecorderEvent *event,
     else if (g_strcmp0(prop_name, "program_number") == 0) {
         ev->program_number = GPOINTER_TO_UINT(prop_value);
     }
+    else if (g_strcmp0(prop_name, "delivery_system") == 0) {
+        ev->delivery_system = GPOINTER_TO_UINT(prop_value);
+    }
+    else if (g_strcmp0(prop_name, "modulation") == 0) {
+        ev->modulation = GPOINTER_TO_UINT(prop_value);
+    }
+    else if (g_strcmp0(prop_name, "roll_off") == 0) {
+        ev->roll_off = GPOINTER_TO_UINT(prop_value);
+    }
     else {
         fprintf(stderr, "Unknown property: %s\n", prop_name);
     }
