@@ -999,6 +999,9 @@ void dvb_reader_dvbpsi_pmt_cb(DVBReader *reader, dvbpsi_pmt_t *pmt)
         dvb_reader_add_active_pid(reader, stream->i_pid, type);
     }
 
+    if (pmt->i_pcr_pid != 0x1ff)
+        dvb_reader_add_active_pid(reader, pmt->i_pcr_pid, DVB_FILTER_PCR);
+
     dvbpsi_pmt_delete(pmt);
 
     reader->dvbpsi_have_pmt = 1;
