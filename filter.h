@@ -10,6 +10,7 @@ typedef enum {
     DVB_FILTER_EIT       = (1 << 6),
     DVB_FILTER_SDT       = (1 << 7),
     DVB_FILTER_RST       = (1 << 8),
-    DVB_FILTER_OTHER     = (1 << 9),
-    DVB_FILTER_ALL       = 0x03ff
+    DVB_FILTER_PCR       = (1 << 9),
+    DVB_FILTER_OTHER     = (1 << 10),
+    DVB_FILTER_ALL       = 0x07ff
 } DVBFilterType;

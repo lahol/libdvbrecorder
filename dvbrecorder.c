@@ -154,7 +154,7 @@ int dvb_recorder_enable_video_source(DVBRecorder *recorder, gboolean enable)
         /* for decoding (gstreamer) pat and pmt are necessary */
         dvb_reader_set_listener(recorder->reader,
                 DVB_FILTER_VIDEO | DVB_FILTER_AUDIO | DVB_FILTER_TELETEXT |
-                DVB_FILTER_SUBTITLES | DVB_FILTER_PAT | DVB_FILTER_PMT/* | DVB_FILTER_UNKNOWN*/,
+                DVB_FILTER_SUBTITLES | DVB_FILTER_PAT | DVB_FILTER_PMT | DVB_FILTER_PCR/* | DVB_FILTER_UNKNOWN*/,
                 recorder->video_pipe[1], NULL, NULL);
 
         LOG(recorder, "[lib] video_pipe: %d\n", recorder->video_pipe[0]);
