@@ -335,10 +335,25 @@ DVBStreamStatus dvb_reader_get_stream_status(DVBReader *reader)
     return reader->status;
 }
 
+static gint _dvb_reader_find_pid(struct DVBPidDescription *desc, uint16_t pid)
+{
+    if (desc->pid == pid)
+        return 0;
+    return 1;
+}
+
 void dvb_reader_add_active_pid(DVBReader *reader, uint16_t pid, DVBFilterType type)
 {
     FLOG("\n");
-    struct DVBPidDescription *desc = g_malloc0(sizeof(struct DVBPidDescription));
+    struct DVBPidDescription *desc = NULL;
+    if ((desc = (struct DVBPidDescription *)g_list_find_custom(reader->active_pids,
+                                                               GUINT_TO_POINTER(pid),
+                                                               (GCompareFunc)_dvb_reader_find_pid)) != NULL) {
+        LOG(reader->parent_obj, "Double PID added, adding type: %u (type %u) + %u\n", pid, desc->type, type);
+        desc->type |= type;
+        return;
+    }
+    desc = g_malloc0(sizeof(struct DVBPidDescription));
 
     desc->pid = pid;
     desc->type = type;
