@@ -25,6 +25,7 @@
 #include "descriptors.h"
 #include "epg.h"
 #include "epg-internal.h"
+#include "logging-internal.h"
 
 struct _DVBReader {
     DVBRecorderEventCallback event_cb;

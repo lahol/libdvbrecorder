@@ -15,20 +15,9 @@ typedef struct _DVBRecorderLogger {
     gpointer data;
 } DVBRecorderLogger;
 
+/** @brief Log a formatted string to the logger, if present.
+ *  @param[in] logger Handle to the logger.
+ *  @param[in] format A format string to use.
+ *  @param[in] ... The format parameters.
+ */
 void dvb_recorder_log(DVBRecorderLogger *logger, gchar *format, ...);
-
-#ifdef DEBUG
-#define DLOG(logger, fmt, ...) dvb_recorder_log((logger), "[libdvbrecorder] *DEBUG* " fmt, ##__VA_ARGS__)
-#else
-#define DLOG(logger, fmt, ...)
-#endif
-
-#ifdef FDEBUG
-#define FLOG(fmt, ...) fprintf(stderr, "%s " fmt, __func__, ##__VA_ARGS__)
-#else
-#define FLOG(fmt, ...)
-#endif
-
-#define LOG(logger, fmt, ...) dvb_recorder_log((logger), "[libdvbrecorder] " __FILE__ ":%d " fmt, __LINE__,  ##__VA_ARGS__)
-
-

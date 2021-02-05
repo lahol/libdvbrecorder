@@ -12,7 +12,7 @@
 #include "read-ts.h"
 #include "channels.h"
 #include "channel-db.h"
-#include "logging.h"
+#include "logging-internal.h"
 #include "scheduled.h"
 #include "dvbrecorder-internal.h"
 #include "timed-events.h"
