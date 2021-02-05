@@ -401,7 +401,7 @@ void dvb_reader_set_listener(DVBReader *reader, DVBFilterType filter, int fd,
     fprintf(stderr, "dvb_reader_set_listener\n");
     g_return_if_fail(reader != NULL);
 
-    LOG(reader->logger, "[lib] set listener %d (%p), mutex: %p\n", fd, callback, &reader->listener_mutex);
+    LOG(reader->logger, "set listener %d (%p), mutex: %p\n", fd, callback, &reader->listener_mutex);
 
     g_mutex_lock(&reader->listener_mutex);
 
@@ -503,7 +503,7 @@ void dvb_reader_remove_listener(DVBReader *reader, int fd, DVBReaderListenerCall
     FLOG("\n");
     g_return_if_fail(reader != NULL);
 
-    LOG(reader->logger, "[lib] remove listener %d (%p), mutex: %p\n", fd, callback, &reader->listener_mutex);
+    LOG(reader->logger, "remove listener %d (%p), mutex: %p\n", fd, callback, &reader->listener_mutex);
 
     g_mutex_lock(&reader->listener_mutex);
 
@@ -573,7 +573,7 @@ void dvb_reader_start(DVBReader *reader)
     g_return_if_fail(reader != NULL);
 
     if (pipe(reader->control_pipe_stream) != 0)
-        LOG(reader->logger, "[lib] Error creating control pipe.\n");
+        LOG(reader->logger, "Error creating control pipe.\n");
 
     reader->status = DVB_STREAM_STATUS_RUNNING;
 
@@ -586,7 +586,7 @@ void dvb_reader_stop(DVBReader *reader)
     g_return_if_fail(reader != NULL);
 
     reader->status = DVB_STREAM_STATUS_STOPPED;
-    LOG(reader->logger, "[lib] dvb_reader_stop: pipe_stream: %d/%d\n", reader->control_pipe_stream[0],
+    LOG(reader->logger, "dvb_reader_stop: pipe_stream: %d/%d\n", reader->control_pipe_stream[0],
         reader->control_pipe_stream[1]);
 
     if (reader->control_pipe_stream[1] >= 0) {
@@ -683,12 +683,12 @@ DVBRecorderEvent *dvb_reader_pop_event(DVBReader *reader)
 void dvb_reader_event_handle_tune_in(DVBReader *reader, DVBRecorderEventTuneIn *event)
 {
     FLOG("\n");
-    LOG(reader->logger, "[lib] Tune In Handler\n");
+    LOG(reader->logger, "Tune In Handler\n");
     dvb_reader_stop(reader);
     int rc;
     g_mutex_lock(&reader->tuner_mutex);
     /* FIXME: make this cancellable */
-    LOG(reader->logger, "[lib] dvb_reader_event_handle_tune_in frequency: %" PRIu32 ", pol: %d, srate: %d\n", event->frequency, event->polarization, event->symbol_rate);
+    LOG(reader->logger, "dvb_reader_event_handle_tune_in frequency: %" PRIu32 ", pol: %d, srate: %d\n", event->frequency, event->polarization, event->symbol_rate);
     DVBTunerConfiguration tuner_config = {
         .frequency = event->frequency,
         .polarization = event->polarization,
@@ -741,7 +741,7 @@ gpointer dvb_reader_event_thread_proc(DVBReader *reader)
     while (1) {
         event = dvb_reader_pop_event(reader);
 
-        LOG(reader->logger, "[lib] reader_event_thread_proc event: %d\n", event->type);
+        LOG(reader->logger, "reader_event_thread_proc event: %d\n", event->type);
 
         switch (event->type) {
             case DVB_RECORDER_EVENT_STOP_THREAD:
@@ -763,7 +763,7 @@ gpointer dvb_reader_event_thread_proc(DVBReader *reader)
 gpointer dvb_reader_data_thread_proc(DVBReader *reader)
 {
     FLOG("\n");
-    LOG(reader->logger, "[lib] dvb_reader_data_thread_proc\n");
+    LOG(reader->logger, "dvb_reader_data_thread_proc\n");
     static TsReaderClass tscls = {
         .handle_packet = dvb_reader_handle_packet,
     };
@@ -793,7 +793,7 @@ gpointer dvb_reader_data_thread_proc(DVBReader *reader)
     pfd[0].fd = reader->control_pipe_stream[0];
     pfd[0].events = POLLIN;
 
-    LOG(reader->logger, "[lib] tuner fd: %d\n", reader->tuner_fd);
+    LOG(reader->logger, "tuner fd: %d\n", reader->tuner_fd);
     if (reader->tuner_fd < 0) {
         /* send event tuning failed */
         goto done;
@@ -809,29 +809,29 @@ gpointer dvb_reader_data_thread_proc(DVBReader *reader)
                 bytes_read = read(pfd[1].fd, buffer, 8*4096);
                 if (bytes_read <= 0) {
                     if (bytes_read == 0) {
-                        LOG(reader->logger, "[lib] reached EOF\n");
+                        LOG(reader->logger, "reached EOF\n");
                         exit_status = DVB_STREAM_STATUS_EOS;
                         break;
                     }
                     if (errno == EAGAIN)
                         continue;
                     if (errno == EOVERFLOW) {
-                        LOG(reader->logger, "[lib] Overflow, continue\n");
+                        LOG(reader->logger, "Overflow, continue\n");
                         continue;
                     }
-                    LOG(reader->logger, "[lib] Error reading data. Stopping thread. (%d) %s\n", errno, strerror(errno));
+                    LOG(reader->logger, "Error reading data. Stopping thread. (%d) %s\n", errno, strerror(errno));
                     exit_status = DVB_STREAM_STATUS_EOS;
                     break;
                 }
                 ts_reader_push_buffer(ts_reader, buffer, bytes_read);
             }
             if (pfd[0].revents & POLLIN || pfd[0].revents & POLLNVAL) {
-                LOG(reader->logger, "[lib] Received data on control pipe. Stop thread.\n");
+                LOG(reader->logger, "Received data on control pipe. Stop thread.\n");
                 exit_status = DVB_STREAM_STATUS_STOPPED;
                 break;
             }
             if (pfd[1].revents & POLLNVAL || pfd[1].revents & POLLHUP || pfd[1].revents & POLLERR) {
-                LOG(reader->logger, "[lib] Input closed\n");
+                LOG(reader->logger, "Input closed\n");
                 exit_status = DVB_STREAM_STATUS_EOS;
                 break;
             }
@@ -846,7 +846,7 @@ done:
 
     reader->data_thread = NULL;
 
-    LOG(reader->logger, "[lib] Stream stopped\n");
+    LOG(reader->logger, "Stream stopped\n");
     dvb_reader_listener_broadcast_message(reader, DVB_READER_LISTENER_MESSAGE_EOS, NULL, 0, FALSE);
 
     dvb_recorder_event_send(DVB_RECORDER_EVENT_STREAM_STATUS_CHANGED,
@@ -883,7 +883,7 @@ gchar *dvb_reader_get_running_program(DVBReader *reader)
 
     for (tmp = table->events; tmp; tmp = g_list_next(tmp)) {
         event = (EPGEvent *)tmp->data;
-        LOG(reader->logger, "[lib] get_running_program: starttime: %lu, running_status: %d\n",
+        LOG(reader->logger, "get_running_program: starttime: %lu, running_status: %d\n",
                 event->starttime, event->running_status);
         if (event->running_status == EPGEventStatusRunning) {
             match = event;
@@ -1095,10 +1095,10 @@ void dvb_reader_dvbpsi_sdt_cb(DVBReader *reader, dvbpsi_sdt_t *sdt)
         }
     }
 
-    LOG(reader->logger, "[lib] SDT: service_info: %p\n", reader->service_info);
+    LOG(reader->logger, "SDT: service_info: %p\n", reader->service_info);
     reader->dvbpsi_have_sdt = 1;
 
-    LOG(reader->logger, "[lib] send DVB_RECORDER_EVENT_SDT_CHANGED\n");
+    LOG(reader->logger, "send DVB_RECORDER_EVENT_SDT_CHANGED\n");
     dvb_recorder_event_send(DVB_RECORDER_EVENT_SDT_CHANGED,
             reader->event_cb, reader->event_data,
             NULL, NULL);

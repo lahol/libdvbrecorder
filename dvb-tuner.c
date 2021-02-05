@@ -97,7 +97,7 @@ int dvb_tuner_setup_frontend(DVBTuner *tuner)
     }
     free(frontend_dev);
 
-    LOG(tuner->logger, "[lib] dvb_tuner_new: frontend_fd: %d\n", tuner->frontend_fd);
+    LOG(tuner->logger, "dvb_tuner_new: frontend_fd: %d\n", tuner->frontend_fd);
 
     if ((ioctl(tuner->frontend_fd, FE_GET_INFO, &tuner->frontend_info)) < 0) {
         LOG(tuner->logger, "Failed to get frontend info.\n");
@@ -202,7 +202,7 @@ static int dvb_tuner_set_disecq(DVBTuner *tuner)
                       | ((tuner->config.polarization ? 1 : 0) << 1)
                       | (tuner->tone ? 1 : 0);
 
-    LOG(tuner->logger, "[lib] dvb_tuner_set_disecq frontend_fd: %d\n", tuner->frontend_fd);
+    LOG(tuner->logger, "dvb_tuner_set_disecq frontend_fd: %d\n", tuner->frontend_fd);
     LOG(tuner->logger, "FE_SET_TONE\n");
     if (ioctl(tuner->frontend_fd, FE_SET_TONE, SEC_TONE_OFF) < 0) {
         LOG(tuner->logger, "FE_SET_TONE failed: (%d) %s\n", errno, strerror(errno));
@@ -475,12 +475,12 @@ void dvb_tuner_add_pid(DVBTuner *tuner, uint16_t pid)
     params.pes_type = DMX_PES_OTHER; /* AUDIO/VIDIO/SUBTITLE/TELETEXT/PCR */
     params.flags = DMX_IMMEDIATE_START;
     if (ioctl(filter->filter.fd, DMX_SET_PES_FILTER, &params) < 0) {
-        LOG(tuner->logger, "[lib] Error setting up filter for pid %u.\n", pid);
+        LOG(tuner->logger, "Error setting up filter for pid %u.\n", pid);
         goto err;
     }
 
 /*    if (ioctl(filter->filter.fd, DMX_SET_BUFFER_SIZE, 8 * 4096) < 0) {
-        LOG(tuner->logger, "[lib] Error setting buffer size for pid %u.\n", pid);
+        LOG(tuner->logger, "Error setting buffer size for pid %u.\n", pid);
     }*/
 
     tuner->pid_filters = filter;
@@ -536,7 +536,7 @@ DVBTuner *dvb_tuner_new(uint8_t adapter_num)
 void dvb_tuner_clean(DVBTuner *tuner)
 {
     if (tuner) {
-        LOG(tuner->logger, "[lib] dvb_tuner_clean tuner->fd: %d\n", tuner->fd);
+        LOG(tuner->logger, "dvb_tuner_clean tuner->fd: %d\n", tuner->fd);
         if (tuner->fd >= 0) {
             close(tuner->fd);
             tuner->fd = -1;
@@ -566,7 +566,7 @@ int dvb_tuner_tune(DVBTuner *tuner,
 {
     if (tuner == NULL)
         return -1;
-    LOG(tuner->logger, "[lib] dvb_tuner_tune tuner->fd: %d\n", tuner->fd);
+    LOG(tuner->logger, "dvb_tuner_tune tuner->fd: %d\n", tuner->fd);
     if (tuner->fd != -1)
         close(tuner->fd);
     tuner->fd = open("/tmp/ts-dummy.ts", O_CLOEXEC | O_RDONLY | O_NONBLOCK);
