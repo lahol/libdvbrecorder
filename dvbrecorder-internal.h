@@ -8,8 +8,7 @@ struct _DVBRecorder {
     DVBRecorderEventCallback event_cb;
     gpointer event_data;
 
-    DVBRecorderLoggerProc logger;
-    gpointer logger_data;
+    DVBRecorderLogger logger;
 
     gboolean video_source_enabled;
 

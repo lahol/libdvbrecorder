@@ -4,13 +4,9 @@
 #include <time.h>
 #include "logging.h"
 
-void dvb_recorder_log(DVBRecorder *recorder, gchar *format, ...)
+void dvb_recorder_log(DVBRecorderLogger *logger, gchar *format, ...)
 {
-    DVBRecorderLoggerProc logger = NULL;
-    gpointer userdata = NULL;
-    if (!dvb_recorder_get_logger(recorder, &logger, &userdata))
-        return;
-    if (!logger)
+    if (!logger || !logger->log)
         return;
 
     va_list args;
@@ -20,7 +16,7 @@ void dvb_recorder_log(DVBRecorder *recorder, gchar *format, ...)
     buf = g_strdup_vprintf(format, args);
     va_end(args);
 
-    logger(buf, userdata);
+    logger->log(buf, logger->data);
     g_free(buf);
 }
 

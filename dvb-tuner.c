@@ -1,4 +1,5 @@
 #include "dvb-tuner.h"
+#include "logging.h"
 
 #define _GNU_SOURCE
 #include <stdio.h>
