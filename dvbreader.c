@@ -298,6 +298,8 @@ void dvb_reader_reset(DVBReader *reader)
 
     dvb_reader_free_eit_tables(reader->eit_tables);
     reader->eit_tables = NULL;
+    g_list_free_full(reader->active_pids, g_free);
+    reader->active_pids = NULL;
 
     dvb_tuner_clean(reader->tuner);
 }
