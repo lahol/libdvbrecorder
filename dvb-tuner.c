@@ -66,16 +66,10 @@ struct PIDFilterList {
 struct _DVBTuner {
     uint8_t adapter_num;
     /* ?? enum fe_sec_tone_mode (frontend.h @108) */
+    DVBTunerConfiguration config;
     uint8_t tone;
-    uint8_t polarization;
-    uint8_t sat_no;
     uint8_t inversion;
     uint8_t fec_inner;
-    uint8_t delivery_system;
-    uint8_t modulation;
-    uint8_t roll_off;
-    uint32_t frequency;
-    uint32_t symbol_rate;
     /* ?? service id*/
 
     int dvr_fd;
@@ -204,8 +198,8 @@ static int dvb_tuner_set_disecq(DVBTuner *tuner)
         .tv_nsec = 15e6
     };
 
-    cmd.msg[3] = 0xf0 | ((tuner->sat_no << 2) & 0x0f)
-                      | ((tuner->polarization ? 1 : 0) << 1)
+    cmd.msg[3] = 0xf0 | ((tuner->config.sat_no << 2) & 0x0f)
+                      | ((tuner->config.polarization ? 1 : 0) << 1)
                       | (tuner->tone ? 1 : 0);
 
     LOG(tuner->logger, "[lib] dvb_tuner_set_disecq frontend_fd: %d\n", tuner->frontend_fd);
@@ -217,7 +211,7 @@ static int dvb_tuner_set_disecq(DVBTuner *tuner)
 
     LOG(tuner->logger, "FE_SET_VOLTAGE\n");
     if (ioctl(tuner->frontend_fd, FE_SET_VOLTAGE,
-                tuner->polarization ? SEC_VOLTAGE_18 : SEC_VOLTAGE_13) < 0) {
+                tuner->config.polarization ? SEC_VOLTAGE_18 : SEC_VOLTAGE_13) < 0) {
         LOG(tuner->logger, "FE_SET_VOLTAGE failed: (%d) %s\n", errno, strerror(errno));
         return -1;
     }
@@ -236,7 +230,7 @@ static int dvb_tuner_set_disecq(DVBTuner *tuner)
 
     LOG(tuner->logger, "FE_DISEQC_SEND_BURST\n");
     if (ioctl(tuner->frontend_fd, FE_DISEQC_SEND_BURST,
-                (tuner->sat_no >> 2) & 0x01 ? SEC_MINI_B : SEC_MINI_A) < 0) {
+                (tuner->config.sat_no >> 2) & 0x01 ? SEC_MINI_B : SEC_MINI_A) < 0) {
         LOG(tuner->logger, "FE_DISEQC_SEND_BURST failed: (%d) %s\n", errno, strerror(errno));
         return -1;
     }
@@ -273,13 +267,13 @@ static int dvb_tuner_do_tune(DVBTuner *tuner)
 
     LOG(tuner->logger, "FE_SET_FRONTEND successful\n");*/
     struct dtv_property p[] = {
-        { .cmd = DTV_DELIVERY_SYSTEM, .u.data = tuner->delivery_system ? SYS_DVBS2 : SYS_DVBS },
-        { .cmd = DTV_FREQUENCY,       .u.data = tuner->frequency },
-        { .cmd = DTV_MODULATION,      .u.data = tuner->modulation },
-        { .cmd = DTV_SYMBOL_RATE,     .u.data = tuner->symbol_rate },
+        { .cmd = DTV_DELIVERY_SYSTEM, .u.data = tuner->config.delivery_system ? SYS_DVBS2 : SYS_DVBS },
+        { .cmd = DTV_FREQUENCY,       .u.data = tuner->config.frequency },
+        { .cmd = DTV_MODULATION,      .u.data = tuner->config.modulation },
+        { .cmd = DTV_SYMBOL_RATE,     .u.data = tuner->config.symbolrate },
         { .cmd = DTV_INNER_FEC,       .u.data = tuner->fec_inner },
         { .cmd = DTV_INVERSION,       .u.data = tuner->inversion },
-        { .cmd = DTV_ROLLOFF,         .u.data = tuner->roll_off },
+        { .cmd = DTV_ROLLOFF,         .u.data = tuner->config.roll_off },
         { .cmd = DTV_PILOT,           .u.data = PILOT_AUTO },
         { .cmd = DTV_TUNE },
     };
@@ -360,17 +354,11 @@ static int dvb_tuner_do_tune(DVBTuner *tuner)
 }
 
 int dvb_tuner_tune(DVBTuner *tuner,
-                   uint32_t frequency,
-                   uint8_t polarization,
-                   uint8_t sat_no,
-                   uint32_t symbolrate,
-                   uint32_t delivery_system,
-                   uint32_t modulation,
-                   uint32_t roll_off,
+                   DVBTunerConfiguration *config,
                    uint16_t *pids,
                    size_t npids) /* + service id -> just for filter/epg/eit ? */
 {
-    if (tuner == NULL)
+    if (tuner == NULL || config == NULL)
         return -1;
 
     /* close open file descriptors */
@@ -379,47 +367,49 @@ int dvb_tuner_tune(DVBTuner *tuner,
     if (dvb_tuner_setup_frontend(tuner) < 0)
         return -1;
 
-    LOG(tuner->logger, "[lib] dvb_tuner_tune: frequency/symbolrate/pol: %" PRIu32 "/%" PRIu32 ", %u\n", frequency, symbolrate, polarization);
+    tuner->config = *config;
 
-    while (frequency < 1000000) {
-        frequency *= 1000;
+    LOG(tuner->logger,
+        "dvb_tuner_tune: frequency/symbolrate/pol: %" PRIu32 "/%" PRIu32 ", %u\n",
+        tuner->config.frequency, tuner->config.symbolrate, tuner->config.polarization);
+
+    while (tuner->config.frequency < 1000000) {
+        tuner->config.frequency *= 1000;
     }
-    while (symbolrate < 1000000) {
-        symbolrate *= 1000;
+    while (tuner->config.symbolrate < 1000000) {
+        tuner->config.symbolrate *= 1000;
     }
 
-    LOG(tuner->logger, "[lib] dvb_tuner_tune: frequency/symbolrate: %" PRIu32 "/%" PRIu32 "\n", frequency, symbolrate);
+    LOG(tuner->logger,
+        "dvb_tuner_tune: frequency/symbolrate: %" PRIu32 "/%" PRIu32 "\n",
+        tuner->config.frequency, tuner->config.symbolrate);
 
     /* lnb switch frequency (hi band/lo band)*/
-    if (frequency > 11700000) {
-        tuner->frequency = frequency - 10600000; /* lnb frequency hi */
+    if (tuner->config.frequency > 11700000) {
+        tuner->config.frequency = tuner->config.frequency - 10600000; /* lnb frequency hi */
         tuner->tone = 1;
     }
     else {
-        tuner->frequency = frequency - 9750000;  /* lnb frequency lo */
+        tuner->config.frequency = tuner->config.frequency - 9750000;  /* lnb frequency lo */
         tuner->tone = 0;
     }
 
     tuner->inversion = INVERSION_AUTO;
-    tuner->polarization = polarization;
-    tuner->sat_no = sat_no;
-    tuner->symbol_rate = symbolrate;
     tuner->fec_inner = FEC_AUTO;
-    switch (modulation) {
-        case 5: tuner->modulation = PSK_8; break;
-        case 6: tuner->modulation = APSK_16; break;
-        case 7: tuner->modulation = APSK_32; break;
+    switch (tuner->config.modulation) {
+        case 5: tuner->config.modulation = PSK_8; break;
+        case 6: tuner->config.modulation = APSK_16; break;
+        case 7: tuner->config.modulation = APSK_32; break;
         case 2:
         default:
-                tuner->modulation = QPSK; break;
+                tuner->config.modulation = QPSK; break;
     }
-    tuner->delivery_system = delivery_system;
-    switch (roll_off) {
-        case 20: tuner->roll_off = ROLLOFF_20; break;
-        case 25: tuner->roll_off = ROLLOFF_25; break;
-        case 0: tuner->roll_off = ROLLOFF_AUTO; break;
+    switch (tuner->config.roll_off) {
+        case 20: tuner->config.roll_off = ROLLOFF_20; break;
+        case 25: tuner->config.roll_off = ROLLOFF_25; break;
+        case 0: tuner->config.roll_off = ROLLOFF_AUTO; break;
         default:
-                tuner->roll_off = ROLLOFF_35;
+                tuner->config.roll_off = ROLLOFF_35;
     }
 
     /* actually tune, setup dvr_fd */
@@ -570,13 +560,7 @@ void dvb_tuner_set_logger(DVBTuner *tuner, DVBRecorderLogger *logger)
 }
 
 int dvb_tuner_tune(DVBTuner *tuner,
-                   uint32_t frequency,
-                   uint8_t polarization,
-                   uint8_t sat_no,
-                   uint32_t symbolrate,
-                   uint32_t delivery_system,
-                   uint32_t modulation,
-                   uint32_t roll_off,
+                   DVBTunerConfiguration *config,
                    uint16_t *pids,
                    size_t npids)
 {

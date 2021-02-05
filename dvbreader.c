@@ -689,9 +689,16 @@ void dvb_reader_event_handle_tune_in(DVBReader *reader, DVBRecorderEventTuneIn *
     g_mutex_lock(&reader->tuner_mutex);
     /* FIXME: make this cancellable */
     LOG(reader->logger, "[lib] dvb_reader_event_handle_tune_in frequency: %" PRIu32 ", pol: %d, srate: %d\n", event->frequency, event->polarization, event->symbol_rate);
-    rc = dvb_tuner_tune(reader->tuner, event->frequency, event->polarization, event->sat_no,
-                                       event->symbol_rate, event->delivery_system, event->modulation,
-                                       event->roll_off, NULL, 0);
+    DVBTunerConfiguration tuner_config = {
+        .frequency = event->frequency,
+        .polarization = event->polarization,
+        .sat_no = event->sat_no,
+        .symbolrate = event->symbol_rate,
+        .delivery_system = event->delivery_system,
+        .modulation = event->modulation,
+        .roll_off = event->roll_off
+    };
+    rc = dvb_tuner_tune(reader->tuner, &tuner_config, NULL, 0);
     if (rc == 0) {
         reader->frequency = event->frequency;
         reader->polarization = event->polarization;
