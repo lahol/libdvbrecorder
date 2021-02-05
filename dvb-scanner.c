@@ -232,7 +232,7 @@ void dvb_scanner_stop(DVBScanner *scanner)
     g_return_if_fail(IS_DVB_SCANNER(scanner));
 
     fprintf(stderr, "child pid: %u\n", scanner->priv->child_pid);
-    
+
     if (scanner->priv->child_pid > 0) {
         kill(scanner->priv->child_pid, SIGKILL);
         scanner->priv->child_pid = 0;
@@ -267,14 +267,14 @@ static void dvb_scanner_finalize(GObject *gobject)
     G_OBJECT_CLASS(dvb_scanner_parent_class)->finalize(gobject);
 }
 
-static void dvb_scanner_set_property(GObject *object, guint prop_id, 
+static void dvb_scanner_set_property(GObject *object, guint prop_id,
         const GValue *value, GParamSpec *spec)
 {
     DVBScanner *self = DVB_SCANNER(object);
 
     switch (prop_id) {
         case PROP_SCAN_COMMAND:
-            dvb_scanner_set_scan_command(self, g_value_get_string(value)); 
+            dvb_scanner_set_scan_command(self, g_value_get_string(value));
             break;
         case PROP_SATELLITE:
             dvb_scanner_set_satellite(self, g_value_get_string(value));

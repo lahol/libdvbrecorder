@@ -179,7 +179,7 @@ static int dvb_tuner_set_disecq(DVBTuner *tuner)
 {
     fprintf(stderr, "dvb_tuner_set_disecq\n");
     /* http://www.eutelsat.com/files/live/sites/eutelsatv2/files/contributed/satellites/pdf/Diseqc/Reference%20docs/bus_spec.pdf */
-    struct dvb_diseqc_master_cmd cmd = 
+    struct dvb_diseqc_master_cmd cmd =
     {
         {
             0xe0,          /* Framing byte: Run-in, Command from master, no reply required, first in this transmission */
@@ -445,7 +445,7 @@ int dvb_tuner_tune(DVBTuner *tuner,
         fprintf(stderr, "failed to open dvr_device: (%d) %s\n", errno, strerror(errno));
         return -1;
     }
- 
+
     fprintf(stderr, "tune successful\n");
     return 0;
 }

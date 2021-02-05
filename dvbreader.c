@@ -140,9 +140,9 @@ void dvb_reader_rewrite_pmt(DVBReader *reader, dvbpsi_pmt_t *pmt);
 void dvb_reader_listener_send_pat(DVBReader *reader, struct DVBReaderListener *listener);
 void dvb_reader_listener_send_pmt(DVBReader *reader, struct DVBReaderListener *listener);
 gpointer dvb_reader_listener_thread_proc(struct DVBReaderListener *listener);
-void dvb_reader_listener_send_message(struct DVBReaderListener *listener, enum DVBReaderListenerMessageType type, 
+void dvb_reader_listener_send_message(struct DVBReaderListener *listener, enum DVBReaderListenerMessageType type,
                                       uint8_t *data, gsize size, gboolean immediately);
-void dvb_reader_listener_broadcast_message(DVBReader *reader, enum DVBReaderListenerMessageType type, 
+void dvb_reader_listener_broadcast_message(DVBReader *reader, enum DVBReaderListenerMessageType type,
                                            uint8_t *data, gsize size, gboolean immediately);
 struct DVBReaderListenerMessage *dvb_reader_listener_pop_message(struct DVBReaderListener *listener);
 void dvb_reader_listener_drop_data_messages(struct DVBReaderListener *listener);
@@ -405,7 +405,7 @@ void dvb_reader_set_listener(DVBReader *reader, DVBFilterType filter, int fd,
     g_mutex_lock(&reader->listener_mutex);
 
     GList *element = NULL;
-    if (fd >= 0) 
+    if (fd >= 0)
         element = g_list_find_custom(reader->listeners, GINT_TO_POINTER(fd), (GCompareFunc)dvb_reader_compare_listener_fd);
     else
         element = g_list_find_custom(reader->listeners, callback, (GCompareFunc)dvb_reader_compare_listener_cb);
@@ -455,7 +455,7 @@ void dvb_reader_listener_set_running(DVBReader *reader, int fd, DVBReaderListene
     g_return_if_fail(reader != NULL);
 
     GList *element = NULL;
-    if (fd >= 0) 
+    if (fd >= 0)
         element = g_list_find_custom(reader->listeners, GINT_TO_POINTER(fd), (GCompareFunc)dvb_reader_compare_listener_fd);
     else
         element = g_list_find_custom(reader->listeners, callback, (GCompareFunc)dvb_reader_compare_listener_cb);
@@ -648,7 +648,7 @@ void dvb_reader_push_event(DVBReader *reader, DVBRecorderEvent *event)
 
     g_queue_push_tail(&reader->event_queue, event);
     g_cond_signal(&reader->event_cond);
-    
+
     g_mutex_unlock(&reader->event_mutex);
 }
 
@@ -659,7 +659,7 @@ void dvb_reader_push_event_next(DVBReader *reader, DVBRecorderEvent *event)
 
     g_queue_push_head(&reader->event_queue, event);
     g_cond_signal(&reader->event_cond);
-    
+
     g_mutex_unlock(&reader->event_mutex);
 }
 
@@ -858,7 +858,7 @@ gchar *dvb_reader_get_running_program(DVBReader *reader)
     struct EITable *table = NULL;
     EPGEvent *event = NULL;
     EPGEvent *match = NULL;
-    
+
     for (tmp = reader->eit_tables; tmp; tmp = g_list_next(tmp)) {
         if (((struct EITable *)tmp->data)->table_id == 0x4e) { /* current/next program */
             table = (struct EITable *)tmp->data;
@@ -949,7 +949,7 @@ void dvb_reader_dvbpsi_pat_cb(DVBReader *reader, dvbpsi_pat_t *pat)
     }
 
     dvbpsi_pat_program_t *prog;
-   
+
     for (prog = pat->p_first_program; prog; prog = prog->p_next) {
         if (prog->i_number == reader->program_number ) {
             reader->dvbpsi_handles[TS_TABLE_PMT] = dvbpsi_new(dvb_reader_dvbpsi_message, DVBPSI_MSG_WARN);
@@ -1094,7 +1094,7 @@ void dvb_reader_dvbpsi_sdt_cb(DVBReader *reader, dvbpsi_sdt_t *sdt)
     dvb_recorder_event_send(DVB_RECORDER_EVENT_SDT_CHANGED,
             reader->event_cb, reader->event_data,
             NULL, NULL);
-    
+
     dvbpsi_sdt_delete(sdt);
     g_list_free_full(desc_list, (GDestroyNotify)dvb_si_descriptor_free);
 }
@@ -1151,7 +1151,7 @@ void dvb_reader_dvbpsi_section_to_ts_packets(uint16_t pid, dvbpsi_psi_section_t 
         ts_set_pid(current, pid);
         ts_set_payload(current);
         ts_set_cc(current, i);
-        
+
         if (G_UNLIKELY(first)) {
             ts_set_unitstart(current);
             current[4] = 0x00; /* pointer */
@@ -1234,7 +1234,7 @@ void dvb_reader_rewrite_pmt(DVBReader *reader, dvbpsi_pmt_t *pmt)
     dvbpsi_delete(encoder_handle);
 }
 
-void dvb_reader_listener_send_message(struct DVBReaderListener *listener, enum DVBReaderListenerMessageType type, 
+void dvb_reader_listener_send_message(struct DVBReaderListener *listener, enum DVBReaderListenerMessageType type,
                                       uint8_t *data, gsize size, gboolean immediately)
 {
     struct DVBReaderListenerMessage *msg = g_malloc(sizeof(struct DVBReaderListenerMessage));
@@ -1256,7 +1256,7 @@ void dvb_reader_listener_send_message(struct DVBReaderListener *listener, enum D
     g_mutex_unlock(&listener->message_lock);
 }
 
-void dvb_reader_listener_broadcast_message(DVBReader *reader, enum DVBReaderListenerMessageType type, 
+void dvb_reader_listener_broadcast_message(DVBReader *reader, enum DVBReaderListenerMessageType type,
                                            uint8_t *data, gsize size, gboolean immediately)
 {
     FLOG("\n");

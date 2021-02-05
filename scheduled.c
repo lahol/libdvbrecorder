@@ -108,7 +108,7 @@ guint scheduled_event_set(DVBRecorder *recorder, ScheduledEvent *event)
         return 0;
 
     guint last_id = event->id;
-    
+
     if (last_id) {
         dvb_recorder_timed_events_remove_group(recorder, last_id);
     }
@@ -173,7 +173,7 @@ guint scheduled_event_check_conflict(guint64 time_start, guint64 time_end)
     }
 
     results = (guint)sqlite3_column_int(check_conflict_stmt, 0);
-    
+
 done:
     sqlite3_reset(check_conflict_stmt);
 

@@ -74,7 +74,7 @@ void epg_event_read_descriptors(EPGEvent *event, dvbpsi_descriptor_t *desc)
                     /* collect descriptors */
                     /* ee “global”, GString for collecting text
                      * if number == 0 -> new GString
-                     * if number == last_number -> write to list 
+                     * if number == last_number -> write to list
                      * (check first if all are read and in the right order?) */
 
                     ee_d = (dvb_si_descriptor_extended_event *)d;
@@ -122,7 +122,7 @@ void epg_event_read_descriptors(EPGEvent *event, dvbpsi_descriptor_t *desc)
         }
         dvb_si_descriptor_free(d);
     }
-    
+
     event->short_descriptions = g_list_reverse(event->short_descriptions);
     event->extended_descriptions = g_list_reverse(event->extended_descriptions);
 }

@@ -191,7 +191,7 @@ void channel_parse_name(gchar *vdrraw, gchar **name, gchar **provider)
     if (vdrraw == NULL || vdrraw[0] == 0)
         return;
     gchar **tokens = g_strsplit(vdrraw, ";", 2);
-    
+
     if (g_strv_length(tokens) == 2) {
         if (name) *name = g_strdup(tokens[0]);
         if (provider) *provider = g_strdup(tokens[1]);
