@@ -32,9 +32,9 @@ void dvb_recorder_event_callback(DVBRecorderEvent *event, gpointer userdata)
             break;
         case DVB_RECORDER_EVENT_LISTENER_STATUS_CHANGED:
             {
-                fprintf(stderr, "EVENT_LISTENER_STATUS_CHANGED\n");
+                LOG(&recorder->logger, "EVENT_LISTENER_STATUS_CHANGED\n");
                 DVBRecorderEventListenerStatusChanged *ev = (DVBRecorderEventListenerStatusChanged *)event;
-                fprintf(stderr, "status: %d, fd: %d, cb: %p\n", ev->status, ev->listener_fd, ev->listener_cb);
+                LOG(&recorder->logger, "status: %d, fd: %d, cb: %p\n", ev->status, ev->listener_fd, ev->listener_cb);
                 if (ev->status == DVB_LISTENER_STATUS_EOS) {
                     if (ev->fd_valid && ev->listener_fd == recorder->video_pipe[1] && recorder->video_source_enabled) {
                         dvb_recorder_event_send(DVB_RECORDER_EVENT_STREAM_STATUS_CHANGED,
@@ -44,13 +44,13 @@ void dvb_recorder_event_callback(DVBRecorderEvent *event, gpointer userdata)
                     }
                 }
                 else if (ev->status == DVB_LISTENER_STATUS_TERMINATED) {
-                    fprintf(stderr, "listener terminated, remove it\n");
+                    LOG(&recorder->logger, "listener terminated, remove it\n");
                     dvb_reader_remove_listener(recorder->reader, ev->fd_valid ? ev->listener_fd : -1,
                                                                  ev->cb_valid ? ev->listener_cb : NULL);
                 }
                 else if (ev->status == DVB_LISTENER_STATUS_WRITE_ERROR) {
                     if (ev->fd_valid && ev->listener_fd == recorder->video_pipe[1] && recorder->video_source_enabled) {
-                        fprintf(stderr, "video write error\n");
+                        LOG(&recorder->logger, "video write error\n");
                         dvb_recorder_event_send(DVB_RECORDER_EVENT_VIDEO_DIED,
                                 recorder->event_cb, recorder->event_data,
                                 NULL, NULL);

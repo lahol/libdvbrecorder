@@ -1345,7 +1345,7 @@ gint dvb_reader_listener_write_data_full(struct DVBReaderListener *listener, con
         nw = 0;
         if ((rc = poll(pfd, 1, 1000)) <= 0) {
             if (rc == 0) {
-                fprintf(stderr, "Writing to %d timed out, count %lu.\n", listener->fd, error_enc);
+                LOG(listener->reader->logger, "Writing to %d timed out, count %lu.\n", listener->fd, error_enc);
                 if (++error_enc > 10 || listener->terminate) {
                     return -1;
                 }
@@ -1353,30 +1353,33 @@ gint dvb_reader_listener_write_data_full(struct DVBReaderListener *listener, con
                 continue;
             }
             if (rc == -1) {
-                fprintf(stderr, "Poll returned an error: %d %s\n", errno, strerror(errno));
+                LOG(listener->reader->logger, "Poll returned an error: %d %s\n", errno, strerror(errno));
                 return -1;
             }
         }
         if ((nw = write(listener->fd, data + offset, (size_t)(size - offset))) <= 0) {
             if (nw < 0) {
                 if (errno == EAGAIN) {
-                    fprintf(stderr, "EAGAIN on fd %d while trying to write %zd bytes.\n", listener->fd, (size_t)(size - offset));
+                    LOG(listener->reader->logger,
+                        "EAGAIN on fd %d while trying to write %zd bytes.\n",
+                        listener->fd,
+                        (size_t)(size - offset));
                     nw = 0;
                     ++error_enc;
                     continue;
                 }
-                fprintf(stderr, "Could not write to %d.\n", listener->fd);
+                LOG(listener->reader->logger, "Could not write to %d.\n", listener->fd);
                 return -1;
             }
             else if (nw == 0) {
-                fprintf(stderr, "Written zero bytes to %d.\n", listener->fd);
+                LOG(listener->reader->logger, "Written zero bytes to %d.\n", listener->fd);
             }
             break;
         }
     }
 
     if (error_enc)
-        fprintf(stderr, "written successfully after encountering %lu errors.\n", error_enc);
+        LOG(listener->reader->logger, "written successfully after encountering %lu errors.\n", error_enc);
 
     return 1;
 }
@@ -1387,7 +1390,7 @@ gpointer dvb_reader_listener_thread_proc(struct DVBReaderListener *listener)
     struct DVBReaderListenerMessage *msg;
     gint rc;
 
-    fprintf(stderr, "dvb_reader_listener_thread_proc for %d, %p\n", listener->fd, listener->callback);
+    LOG(listener->reader->logger, "dvb_reader_listener_thread_proc for %d, %p\n", listener->fd, listener->callback);
 
     while (1) {
         msg = dvb_reader_listener_pop_message(listener);
@@ -1450,7 +1453,7 @@ gpointer dvb_reader_listener_thread_proc(struct DVBReaderListener *listener)
         g_free(msg);
     }
 
-    fprintf(stderr, "listener: %d %p reached the unreachable\n", listener->fd, listener->callback);
+    LOG(listener->reader->logger, "listener: %d %p reached the unreachable\n", listener->fd, listener->callback);
     return NULL;
 }
 
