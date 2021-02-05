@@ -2,12 +2,15 @@
 
 #include <stdint.h>
 #include <stdlib.h>
+#include "logging.h"
 
 typedef struct _DVBTuner DVBTuner;
 
 DVBTuner *dvb_tuner_new(uint8_t adapter_num);
 void dvb_tuner_clean(DVBTuner *tuner);
 void dvb_tuner_free(DVBTuner *tuner);
+
+void dvb_tuner_set_logger(DVBTuner *tuner, DVBRecorderLogger *logger);
 
 int dvb_tuner_tune(DVBTuner *tuner,
                    uint32_t frequency,

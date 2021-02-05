@@ -29,6 +29,6 @@ void dvb_recorder_log(DVBRecorderLogger *logger, gchar *format, ...);
 #define FLOG(fmt, ...)
 #endif
 
-#define LOG(logger, fmt, ...) dvb_recorder_log((logger), "[libdvbrecorder] " fmt, ##__VA_ARGS__)
+#define LOG(logger, fmt, ...) dvb_recorder_log((logger), "[libdvbrecorder] " __FILE__ ":%d " fmt, __LINE__,  ##__VA_ARGS__)
 
 

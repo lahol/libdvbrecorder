@@ -167,6 +167,7 @@ void dvb_reader_set_logger(DVBReader *reader, DVBRecorderLogger *logger)
     if (!reader)
         return;
     reader->logger = logger;
+    dvb_tuner_set_logger(reader->tuner, logger);
 }
 
 gint dvb_reader_compare_event_tables_id(struct EITable *a, struct EITable *b)
