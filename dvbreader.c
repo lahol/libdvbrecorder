@@ -1471,12 +1471,12 @@ gpointer dvb_reader_listener_thread_proc(struct DVBReaderListener *listener)
 void _dump_packet(DVBRecorderLogger *logger, const uint8_t *packet)
 {
     uint16_t i;
+    gchar buf[64];
     for (i = 0; i < TS_SIZE; ++i) {
-        LOG(logger, "%02x ", packet[i]);
-        if (i % 16 == 15)
-            LOG(logger, "\n");
+        sprintf(&buf[(i % 16) * 3], "%02x ", packet[i]);
+        if (i % 16 == 15 || i+1 == TS_SIZE)
+            LOG(logger, "%s\n", buf);
     }
-    LOG(logger, "\n");
 }
 
 void dvb_reader_listener_send_pat(DVBReader *reader, struct DVBReaderListener *listener)
