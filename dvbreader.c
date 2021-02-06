@@ -969,11 +969,13 @@ void dvb_reader_dvbpsi_pat_cb(DVBReader *reader, dvbpsi_pat_t *pat)
         return;
     }
 
+    LOG(reader->logger, "pat_cb: current_next=%u, ts_id=%u, version=%u\n", pat->b_current_next, pat->i_ts_id, pat->i_version);
+
     dvbpsi_pat_program_t *prog;
 
     for (prog = pat->p_first_program; prog; prog = prog->p_next) {
-        LOG(reader->logger, "pat_cb: pat prog number=%u, want %u\n",
-                prog->i_number, reader->program_number);
+        LOG(reader->logger, "pat_cb: pat prog number=%u, pid=%u, want prog %u\n",
+                prog->i_number, prog->i_pid, reader->program_number);
         if (prog->i_number == reader->program_number ) {
             reader->dvbpsi_handles[TS_TABLE_PMT] = dvbpsi_new(dvb_reader_dvbpsi_message, DVBPSI_MSG_WARN);
             dvbpsi_pmt_attach(reader->dvbpsi_handles[TS_TABLE_PMT], reader->program_number,
@@ -1095,6 +1097,10 @@ void dvb_reader_dvbpsi_sdt_cb(DVBReader *reader, dvbpsi_sdt_t *sdt)
         dvbpsi_sdt_delete(sdt);
         return;
     }
+
+    LOG(reader->logger, "sdt_cb: cur/next=%u, version=%u, ext=%u, networkid=%u, tableid=%u\n",
+            sdt->b_current_next, sdt->i_version, sdt->i_extension, sdt->i_network_id, sdt->i_table_id);
+
     dvbpsi_sdt_service_t *service;
     GList *desc_list = NULL;
     for (service = sdt->p_first_service; service; service = service->p_next) {
