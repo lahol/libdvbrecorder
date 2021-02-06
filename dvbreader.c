@@ -953,7 +953,7 @@ GList *dvb_reader_dvbpsi_handle_descriptors(DVBReader *reader, dvbpsi_descriptor
 
 void dvb_reader_dvbpsi_pat_cb(DVBReader *reader, dvbpsi_pat_t *pat)
 {
-    LOG(reader->logger, "pat_cb\n");
+    LOG(reader->logger, "pat_cb: have_pat: %d\n", reader->dvbpsi_have_pat);
     if (reader->dvbpsi_have_pat) {
         dvbpsi_pat_delete(pat);
         return;
@@ -977,19 +977,21 @@ void dvb_reader_dvbpsi_pat_cb(DVBReader *reader, dvbpsi_pat_t *pat)
 
     dvbpsi_pat_delete(pat);
 
-    reader->dvbpsi_have_pat = 1;
+    if (reader->pat_packet_count) {
+        reader->dvbpsi_have_pat = 1;
 
-    GList *tmp;
-    g_mutex_lock(&reader->listener_mutex);
-    for (tmp = reader->listeners; tmp; tmp = g_list_next(tmp)) {
-        dvb_reader_listener_send_pat(reader, (struct DVBReaderListener *)tmp->data);
+        GList *tmp;
+        g_mutex_lock(&reader->listener_mutex);
+        for (tmp = reader->listeners; tmp; tmp = g_list_next(tmp)) {
+            dvb_reader_listener_send_pat(reader, (struct DVBReaderListener *)tmp->data);
+        }
+        g_mutex_unlock(&reader->listener_mutex);
     }
-    g_mutex_unlock(&reader->listener_mutex);
 }
 
 void dvb_reader_dvbpsi_pmt_cb(DVBReader *reader, dvbpsi_pmt_t *pmt)
 {
-    LOG(reader->logger, "pmt_cb\n");
+    LOG(reader->logger, "pmt_cb: have_pmt: %d\n", reader->dvbpsi_have_pmt);
     if (reader->dvbpsi_have_pmt) {
         dvbpsi_pmt_delete(pmt);
         return;
@@ -1099,12 +1101,14 @@ void dvb_reader_dvbpsi_sdt_cb(DVBReader *reader, dvbpsi_sdt_t *sdt)
     }
 
     LOG(reader->logger, "SDT: service_info: %p\n", reader->service_info);
-    reader->dvbpsi_have_sdt = 1;
+    if (reader->service_info) {
+        reader->dvbpsi_have_sdt = 1;
 
-    LOG(reader->logger, "send DVB_RECORDER_EVENT_SDT_CHANGED\n");
-    dvb_recorder_event_send(DVB_RECORDER_EVENT_SDT_CHANGED,
-            reader->event_cb, reader->event_data,
-            NULL, NULL);
+        LOG(reader->logger, "send DVB_RECORDER_EVENT_SDT_CHANGED\n");
+        dvb_recorder_event_send(DVB_RECORDER_EVENT_SDT_CHANGED,
+                reader->event_cb, reader->event_data,
+                NULL, NULL);
+    }
 
     dvbpsi_sdt_delete(sdt);
     g_list_free_full(desc_list, (GDestroyNotify)dvb_si_descriptor_free);
@@ -1134,6 +1138,10 @@ void dvb_reader_dvbpsi_section_to_ts_packets(uint16_t pid, dvbpsi_psi_section_t 
 {
     if (section == NULL) {
         if (packets) *packets = NULL;
+        if (packet_count) *packet_count = 0;
+        return;
+    }
+    if (packets == NULL) {
         if (packet_count) *packet_count = 0;
         return;
     }
