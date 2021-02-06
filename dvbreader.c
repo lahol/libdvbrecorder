@@ -27,6 +27,10 @@
 #include "epg-internal.h"
 #include "logging-internal.h"
 
+#ifndef DVB_BUFFER_SIZE
+#define DVB_BUFFER_SIZE 65536
+#endif
+
 struct _DVBReader {
     DVBRecorderEventCallback event_cb;
     gpointer event_data;
@@ -794,7 +798,7 @@ gpointer dvb_reader_data_thread_proc(DVBReader *reader)
     dvb_reader_add_active_pid(reader, 19, DVB_FILTER_RST);
 
 
-    uint8_t buffer[8*4096];
+    uint8_t buffer[DVB_BUFFER_SIZE];
     ssize_t bytes_read;
     struct pollfd pfd[2];
 
@@ -814,7 +818,7 @@ gpointer dvb_reader_data_thread_proc(DVBReader *reader)
     while (1) {
         if (poll(pfd, 2, 15000)) {
             if (pfd[1].revents & POLLIN) {
-                bytes_read = read(pfd[1].fd, buffer, 8*4096);
+                bytes_read = read(pfd[1].fd, buffer, DVB_BUFFER_SIZE);
                 if (bytes_read <= 0) {
                     if (bytes_read == 0) {
                         LOG(reader->logger, "reached EOF\n");
