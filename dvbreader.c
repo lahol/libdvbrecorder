@@ -1095,6 +1095,8 @@ void dvb_reader_dvbpsi_sdt_cb(DVBReader *reader, dvbpsi_sdt_t *sdt)
     dvbpsi_sdt_service_t *service;
     GList *desc_list = NULL;
     for (service = sdt->p_first_service; service; service = service->p_next) {
+        LOG(reader->logger, "sdt_cb, std service_id=%u, want %u\n",
+                service->i_service_id, reader->program_number);
         if (service->i_service_id == reader->program_number) {
             desc_list = dvb_reader_dvbpsi_handle_descriptors(reader, service->p_first_descriptor);
             break;
@@ -1103,6 +1105,9 @@ void dvb_reader_dvbpsi_sdt_cb(DVBReader *reader, dvbpsi_sdt_t *sdt)
 
     GList *tmp;
     for (tmp = desc_list; tmp; tmp = g_list_next(tmp)) {
+        LOG(reader->logger, "sdt_cb, tag=0x%02x, want 0x%02x\n",
+                ((dvb_si_descriptor *)tmp->data)->tag,
+                dvb_si_tag_service_descriptor);
         if (((dvb_si_descriptor *)tmp->data)->tag == dvb_si_tag_service_descriptor) {
             reader->service_info = (dvb_si_descriptor_service *)tmp->data;
             tmp->data = NULL;
