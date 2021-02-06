@@ -346,13 +346,13 @@ static gint _dvb_reader_find_pid(struct DVBPidDescription *desc, uint16_t pid)
 void dvb_reader_add_active_pid(DVBReader *reader, uint16_t pid, DVBFilterType type)
 {
     FLOG("\n");
-    LOG(reader->logger, "Add active pid: %u, type 0x%04x\n", type);
+    LOG(reader->logger, "Add active pid: %u, type 0x%04x\n", pid, type);
 
     struct DVBPidDescription *desc = NULL;
     if ((desc = (struct DVBPidDescription *)g_list_find_custom(reader->active_pids,
                                                                GUINT_TO_POINTER(pid),
                                                                (GCompareFunc)_dvb_reader_find_pid)) != NULL) {
-        LOG(reader->logger, "Double PID added, adding type: %u (type %04x | %04x)\n", pid, desc->type, type);
+        LOG(reader->logger, "Double PID added, adding type: %u (type 0x%04x | 0x%04x)\n", pid, desc->type, type);
         desc->type |= type;
         return;
     }
