@@ -1093,7 +1093,7 @@ void dvb_reader_dvbpsi_sdt_cb(DVBReader *reader, dvbpsi_sdt_t *sdt)
 
     GList *tmp;
     for (tmp = desc_list; tmp; tmp = g_list_next(tmp)) {
-        if (((dvb_si_descriptor *)tmp->data)->tag == 0x48) { /* service descriptor */
+        if (((dvb_si_descriptor *)tmp->data)->tag == dvb_si_tag_service_descriptor) {
             reader->service_info = (dvb_si_descriptor_service *)tmp->data;
             tmp->data = NULL;
             break;
