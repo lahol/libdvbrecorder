@@ -346,11 +346,13 @@ static gint _dvb_reader_find_pid(struct DVBPidDescription *desc, uint16_t pid)
 void dvb_reader_add_active_pid(DVBReader *reader, uint16_t pid, DVBFilterType type)
 {
     FLOG("\n");
+    LOG(reader->logger, "Add active pid: %u, type 0x%04x\n", type);
+
     struct DVBPidDescription *desc = NULL;
     if ((desc = (struct DVBPidDescription *)g_list_find_custom(reader->active_pids,
                                                                GUINT_TO_POINTER(pid),
                                                                (GCompareFunc)_dvb_reader_find_pid)) != NULL) {
-        LOG(reader->logger, "Double PID added, adding type: %u (type %u) + %u\n", pid, desc->type, type);
+        LOG(reader->logger, "Double PID added, adding type: %u (type %04x | %04x)\n", pid, desc->type, type);
         desc->type |= type;
         return;
     }
@@ -913,6 +915,11 @@ DVBStreamInfo *dvb_reader_get_stream_info(DVBReader *reader)
     info->service_name = reader->service_info ? g_strdup(reader->service_info->name) : NULL;
     info->service_type = reader->service_info ? reader->service_info->type : 0;
 
+    LOG(reader->logger, "Service info: provider=%s, name=%s, type=%u\n",
+            info->service_provider,
+            info->service_name,
+            info->service_type);
+
     /* FIXME: read this from current eit (0x48) */
     info->program_title = dvb_reader_get_running_program(reader);
 
@@ -962,6 +969,8 @@ void dvb_reader_dvbpsi_pat_cb(DVBReader *reader, dvbpsi_pat_t *pat)
     dvbpsi_pat_program_t *prog;
 
     for (prog = pat->p_first_program; prog; prog = prog->p_next) {
+        LOG(reader->logger, "pat_cb: pat prog number=%u, want %u\n",
+                prog->i_number, reader->program_number);
         if (prog->i_number == reader->program_number ) {
             reader->dvbpsi_handles[TS_TABLE_PMT] = dvbpsi_new(dvb_reader_dvbpsi_message, DVBPSI_MSG_WARN);
             dvbpsi_pmt_attach(reader->dvbpsi_handles[TS_TABLE_PMT], reader->program_number,
@@ -977,6 +986,7 @@ void dvb_reader_dvbpsi_pat_cb(DVBReader *reader, dvbpsi_pat_t *pat)
 
     dvbpsi_pat_delete(pat);
 
+    LOG(reader->logger, "pat_cb: pat packet count: %u\n", reader->pat_packet_count);
     if (reader->pat_packet_count) {
         reader->dvbpsi_have_pat = 1;
 
@@ -1232,6 +1242,7 @@ void dvb_reader_rewrite_pat(DVBReader *reader, uint16_t ts_id, uint16_t program_
 
     dvbpsi_psi_section_t *section = dvbpsi_pat_sections_generate(encoder_handle, pat, 0);
     dvb_reader_dvbpsi_section_to_ts_packets(0, section, &reader->pat_data, &reader->pat_packet_count);
+    LOG(reader->logger, "rewrite pat to %u packets\n", reader->pat_packet_count);
 
     dvbpsi_DeletePSISections(section);
     dvbpsi_pat_delete(pat);

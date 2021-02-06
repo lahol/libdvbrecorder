@@ -97,7 +97,7 @@ int dvb_tuner_setup_frontend(DVBTuner *tuner)
     }
     free(frontend_dev);
 
-    LOG(tuner->logger, "dvb_tuner_new: frontend_fd: %d\n", tuner->frontend_fd);
+    LOG(tuner->logger, "dvb_tuner_setup_frontend: frontend_fd: %d\n", tuner->frontend_fd);
 
     if ((ioctl(tuner->frontend_fd, FE_GET_INFO, &tuner->frontend_info)) < 0) {
         LOG(tuner->logger, "Failed to get frontend info.\n");
@@ -338,7 +338,7 @@ static int dvb_tuner_do_tune(DVBTuner *tuner)
         }
 
         /*usleep(10000);*/
-        LOG(tuner->logger, "no lock or timeout\n");
+        LOG(tuner->logger, "no lock or timeout: 0x%x\n", status);
         nanosleep(&slp, NULL);
     } while (!(status & FE_TIMEDOUT));
 
@@ -349,6 +349,7 @@ static int dvb_tuner_do_tune(DVBTuner *tuner)
         return 0;
     }
     else {
+        LOG(tuner->logger, "do_tune failed, status=0x%x\n", status);
         return -1;
     }
 }
