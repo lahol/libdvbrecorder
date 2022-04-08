@@ -408,7 +408,7 @@ void dvb_reader_set_listener(DVBReader *reader, DVBFilterType filter, int fd,
     g_mutex_lock(&reader->listener_mutex);
 
     GList *element = NULL;
-    if (fd >= 0) 
+    if (fd >= 0)
         element = g_list_find_custom(reader->listeners, GINT_TO_POINTER(fd), (GCompareFunc)dvb_reader_compare_listener_fd);
     else
         element = g_list_find_custom(reader->listeners, callback, (GCompareFunc)dvb_reader_compare_listener_cb);
@@ -426,9 +426,9 @@ void dvb_reader_set_listener(DVBReader *reader, DVBFilterType filter, int fd,
         listener->have_pat = 0;
         listener->have_pmt = 0;
         listener->running = 0;
-        g_mutex_unlock(&listener->message_lock);
         listener->filter = filter;
         listener->userdata = userdata;
+        g_mutex_unlock(&listener->message_lock);
     }
     else {
         listener = g_malloc0(sizeof(struct DVBReaderListener));
