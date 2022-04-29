@@ -797,6 +797,7 @@ gpointer dvb_reader_data_thread_proc(DVBReader *reader)
     dvbpsi_rst_attach(reader->dvbpsi_handles[TS_TABLE_RST], (dvbpsi_rst_callback)dvb_reader_dvbpsi_rst_cb, reader);
     dvb_reader_add_active_pid(reader, 19, DVB_FILTER_RST);
 
+    DVBStreamStatus exit_status = DVB_STREAM_STATUS_UNKNOWN;
 
     uint8_t buffer[DVB_BUFFER_SIZE];
     ssize_t bytes_read;
@@ -812,8 +813,6 @@ gpointer dvb_reader_data_thread_proc(DVBReader *reader)
     }
     pfd[1].fd = reader->tuner_fd;
     pfd[1].events = POLLIN;
-
-    DVBStreamStatus exit_status = DVB_STREAM_STATUS_UNKNOWN;
 
     while (1) {
         if (poll(pfd, 2, 15000)) {
@@ -1199,15 +1198,13 @@ void dvb_reader_dvbpsi_section_to_ts_packets(uint16_t pid, dvbpsi_psi_section_t 
         ts_set_payload(current);
         ts_set_cc(current, i);
 
-        if (G_UNLIKELY(first)) {
+        if (first) {
             ts_set_unitstart(current);
             current[4] = 0x00; /* pointer */
             current += 5;
             if (left_to_write < 183) {
                 memcpy(current, pdata, left_to_write);
-                pdata += left_to_write;
                 current += left_to_write;
-                left_to_write = 0;
                 break;
             }
             else {
@@ -1222,9 +1219,7 @@ void dvb_reader_dvbpsi_section_to_ts_packets(uint16_t pid, dvbpsi_psi_section_t 
             current += 4;
             if (left_to_write < 184) {
                 memcpy(current, pdata, left_to_write);
-                pdata += left_to_write;
                 current += left_to_write;
-                left_to_write = 0;
                 break;
             }
             else {

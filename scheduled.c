@@ -141,7 +141,7 @@ void scheduled_event_remove(DVBRecorder *recorder, guint event_id)
 
     sqlite3_bind_int64(remove_event_stmt, 1, (gint64)event_id);
 
-    rc = sqlite3_step(remove_event_stmt);
+    sqlite3_step(remove_event_stmt);
     sqlite3_reset(remove_event_stmt);
 
     dvb_recorder_enable_scheduled_events(recorder, recorder->scheduled_recordings_enabled);
