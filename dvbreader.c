@@ -428,6 +428,8 @@ void dvb_reader_set_listener(DVBReader *reader, DVBFilterType filter, int fd,
         listener->running = 0;
         listener->filter = filter;
         listener->userdata = userdata;
+        /* Reset buffer */
+        listener->buffer_size = 0;
         g_mutex_unlock(&listener->message_lock);
     }
     else {

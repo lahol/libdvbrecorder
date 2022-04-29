@@ -2,7 +2,7 @@ CC = gcc
 LD = gcc
 PKG_CONFIG = pkg-config
 CFLAGS += -Wall `$(PKG_CONFIG) --cflags glib-2.0`
-LIBS += `$(PKG_CONFIG) --libs glib-2.0` -ldvbpsi
+LIBS += `$(PKG_CONFIG) --libs glib-2.0` -ldvbpsi -lsqlite3
 RM ?= rm
 
 PREFIX := /usr
