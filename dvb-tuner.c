@@ -525,7 +525,7 @@ DVBTuner *dvb_tuner_new(uint8_t adapter_num)
 {
     DVBTuner *tuner = malloc(sizeof(DVBTuner));
     if (unlikely(tuner == NULL)) {
-        LOG(tuner->logger, "Failed to allocate memory.\n");
+        fprintf(stderr, "Failed to allocate memory.\n");
         return NULL;
     }
     memset(tuner, 0, sizeof(DVBTuner));
