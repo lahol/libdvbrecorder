@@ -46,7 +46,7 @@ gboolean util_convert_string_control_codes(gchar **buf)
     p = *buf;
     do {
         if ((*p & 0x80) == 0x00) {
-            *q = *p; ++p; ++q;    
+            *q = *p; ++p; ++q;
         }
         else if ((*p & 0xE0) == 0xC0) {
             *q = *p; ++p; ++q;
@@ -83,7 +83,7 @@ gchar *util_convert_string(guchar *str, guint8 length)
     /* FIXME: clean up this mess, support the other codes, too */
     char *from;
     switch (str[0]) {
-        case 0x05: 
+        case 0x05:
             from = "ISO_8859-9";
             break;
         case 0x00:
@@ -129,7 +129,7 @@ time_t util_convert_datetime(guint64 datetime, struct tm **tm)
     time_t tval = ((datetime >> 24) - 40587) * 86400
                  + util_convert_bcd_time(datetime & 0xffffff, NULL, NULL, NULL);
     if (tm) {
-        *tm = localtime(&tval);       
+        *tm = localtime(&tval);
     }
 
     return tval;

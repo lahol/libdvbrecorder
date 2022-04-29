@@ -7,6 +7,7 @@
 #include "epg.h"
 #include "streaminfo.h"
 #include "filter.h"
+#include "logging.h"
 
 typedef struct _DVBRecorder DVBRecorder;
 
@@ -31,9 +32,7 @@ void dvb_recorder_destroy(DVBRecorder *recorder);
 int dvb_recorder_enable_video_source(DVBRecorder *recorder, gboolean enable);
 void dvb_recorder_video_source_run(DVBRecorder *recorder);
 
-typedef void (*DVBRecorderLoggerProc)(gchar *, gpointer);
 void dvb_recorder_set_logger(DVBRecorder *recorder, DVBRecorderLoggerProc logger, gpointer userdata);
-gboolean dvb_recorder_get_logger(DVBRecorder *recorder, DVBRecorderLoggerProc *logger, gpointer *userdata);
 
 GList *dvb_recorder_get_channel_list(DVBRecorder *recorder);
 gboolean dvb_recorder_set_channel(DVBRecorder *recorder, guint64 channel_id);

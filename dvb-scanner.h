@@ -12,14 +12,10 @@ G_BEGIN_DECLS
 #define DVB_SCANNER_GET_CLASS(obj) (G_TYPE_INSTANCE_GET_CLASS((obj), DVB_SCANNER_TYPE, DVBScannerClass))
 
 typedef struct _DVBScanner DVBScanner;
-typedef struct _DVBScannerPrivate DVBScannerPrivate;
 typedef struct _DVBScannerClass DVBScannerClass;
 
 struct _DVBScanner {
     GObject parent_instance;
-
-    /*< private >*/
-    DVBScannerPrivate *priv;
 };
 
 struct _DVBScannerClass {

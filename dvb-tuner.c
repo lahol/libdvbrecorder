@@ -1,4 +1,5 @@
 #include "dvb-tuner.h"
+#include "logging-internal.h"
 
 #define _GNU_SOURCE
 #include <stdio.h>
@@ -64,19 +65,11 @@ struct PIDFilterList {
 
 struct _DVBTuner {
     uint8_t adapter_num;
-/*    uint32_t frequency;*/
     /* ?? enum fe_sec_tone_mode (frontend.h @108) */
+    DVBTunerConfiguration config;
     uint8_t tone;
-    uint8_t polarization;
-    uint8_t sat_no;
     uint8_t inversion;
     uint8_t fec_inner;
-    uint8_t delivery_system;
-    uint8_t modulation;
-    uint8_t roll_off;
-    uint32_t frequency;
-    uint32_t symbol_rate;
-/*    uint32_t symbolrate;*/
     /* ?? service id*/
 
     int dvr_fd;
@@ -86,31 +79,33 @@ struct _DVBTuner {
     int frontend_fd;
 
     struct PIDFilterList *pid_filters;
+
+    DVBRecorderLogger *logger;
 };
 
 int dvb_tuner_setup_frontend(DVBTuner *tuner)
 {
     char *frontend_dev = NULL;
     if (_asprintf(&frontend_dev, "/dev/dvb/adapter%u/frontend0", tuner->adapter_num) < 0) {
-        fprintf(stderr, "Failed to get frontend dev string.\n");
+        LOG(tuner->logger, "Failed to get frontend dev string.\n");
         return -1;
     }
     if ((tuner->frontend_fd = open(frontend_dev, O_CLOEXEC | O_RDWR)) < 0) {
-        fprintf(stderr, "Failed to open frontend device %s.\n", frontend_dev);
+        LOG(tuner->logger, "Failed to open frontend device %s.\n", frontend_dev);
         free(frontend_dev);
         return -1;
     }
     free(frontend_dev);
 
-    fprintf(stderr, "[lib] dvb_tuner_new: frontend_fd: %d\n", tuner->frontend_fd);
+    LOG(tuner->logger, "dvb_tuner_setup_frontend: frontend_fd: %d\n", tuner->frontend_fd);
 
     if ((ioctl(tuner->frontend_fd, FE_GET_INFO, &tuner->frontend_info)) < 0) {
-        fprintf(stderr, "Failed to get frontend info.\n");
+        LOG(tuner->logger, "Failed to get frontend info.\n");
         return -1;
     }
 
     if (tuner->frontend_info.type != FE_QPSK) {
-        fprintf(stderr, "Adapter %u does not support DVB-S(2).\n", tuner->adapter_num);
+        LOG(tuner->logger, "Adapter %u does not support DVB-S(2).\n", tuner->adapter_num);
         return -1;
     }
 
@@ -123,7 +118,7 @@ DVBTuner *dvb_tuner_new(uint8_t adapter_num)
 {
     DVBTuner *tuner = malloc(sizeof(DVBTuner));
     if (tuner == NULL) {
-        fprintf(stderr, "Failed to allocate memory.\n");
+        LOG(tuner->logger, "Failed to allocate memory.\n");
         return NULL;
     }
     memset(tuner, 0, sizeof(DVBTuner));
@@ -137,7 +132,6 @@ DVBTuner *dvb_tuner_new(uint8_t adapter_num)
 
 void dvb_tuner_clean(DVBTuner *tuner)
 {
-    fprintf(stderr, "dvb_tuner_clean\n");
     if (!tuner)
         return;
 #define CLOSE_FD(fd) do {\
@@ -147,6 +141,7 @@ void dvb_tuner_clean(DVBTuner *tuner)
     }\
 } while (0)
 
+    LOG(tuner->logger, "dvb_tuner_clean\n");
 
     struct PIDFilterList *tmp;
     while (tuner->pid_filters) {
@@ -174,11 +169,18 @@ void dvb_tuner_free(DVBTuner *tuner)
     }
 }
 
+void dvb_tuner_set_logger(DVBTuner *tuner, DVBRecorderLogger *logger)
+{
+    if (tuner) {
+        tuner->logger = logger;
+    }
+}
+
 static int dvb_tuner_set_disecq(DVBTuner *tuner)
 {
-    fprintf(stderr, "dvb_tuner_set_disecq\n");
+    LOG(tuner->logger, "dvb_tuner_set_disecq\n");
     /* http://www.eutelsat.com/files/live/sites/eutelsatv2/files/contributed/satellites/pdf/Diseqc/Reference%20docs/bus_spec.pdf */
-    struct dvb_diseqc_master_cmd cmd = 
+    struct dvb_diseqc_master_cmd cmd =
     {
         {
             0xe0,          /* Framing byte: Run-in, Command from master, no reply required, first in this transmission */
@@ -196,60 +198,60 @@ static int dvb_tuner_set_disecq(DVBTuner *tuner)
         .tv_nsec = 15e6
     };
 
-    cmd.msg[3] = 0xf0 | ((tuner->sat_no << 2) & 0x0f)
-                      | ((tuner->polarization ? 1 : 0) << 1)
+    cmd.msg[3] = 0xf0 | ((tuner->config.sat_no << 2) & 0x0f)
+                      | ((tuner->config.polarization ? 1 : 0) << 1)
                       | (tuner->tone ? 1 : 0);
 
-    fprintf(stderr, "[lib] dvb_tuner_set_disecq frontend_fd: %d\n", tuner->frontend_fd);
-    fprintf(stderr, "FE_SET_TONE\n");
+    LOG(tuner->logger, "dvb_tuner_set_disecq frontend_fd: %d\n", tuner->frontend_fd);
+    LOG(tuner->logger, "FE_SET_TONE\n");
     if (ioctl(tuner->frontend_fd, FE_SET_TONE, SEC_TONE_OFF) < 0) {
-        fprintf(stderr, "FE_SET_TONE failed: (%d) %s\n", errno, strerror(errno));
+        LOG(tuner->logger, "FE_SET_TONE failed: (%d) %s\n", errno, strerror(errno));
         return -1;
     }
 
-    fprintf(stderr, "FE_SET_VOLTAGE\n");
+    LOG(tuner->logger, "FE_SET_VOLTAGE\n");
     if (ioctl(tuner->frontend_fd, FE_SET_VOLTAGE,
-                tuner->polarization ? SEC_VOLTAGE_18 : SEC_VOLTAGE_13) < 0) {
-        fprintf(stderr, "FE_SET_VOLTAGE failed: (%d) %s\n", errno, strerror(errno));
+                tuner->config.polarization ? SEC_VOLTAGE_18 : SEC_VOLTAGE_13) < 0) {
+        LOG(tuner->logger, "FE_SET_VOLTAGE failed: (%d) %s\n", errno, strerror(errno));
         return -1;
     }
 
 /*    usleep(15000);*/
     nanosleep(&slp, NULL);
 
-    fprintf(stderr, "FE_DISEQC_SEND_MASTER_CMD\n");
+    LOG(tuner->logger, "FE_DISEQC_SEND_MASTER_CMD\n");
     if (ioctl(tuner->frontend_fd, FE_DISEQC_SEND_MASTER_CMD, &cmd) < 0) {
-        fprintf(stderr, "FE_DISEQC_SEND_MASTER_CMD failed: (%d) %s\n", errno, strerror(errno));
+        LOG(tuner->logger, "FE_DISEQC_SEND_MASTER_CMD failed: (%d) %s\n", errno, strerror(errno));
         return -1;
     }
 
 /*    usleep(15000);*/
     nanosleep(&slp, NULL);
 
-    fprintf(stderr, "FE_DISEQC_SEND_BURST\n");
+    LOG(tuner->logger, "FE_DISEQC_SEND_BURST\n");
     if (ioctl(tuner->frontend_fd, FE_DISEQC_SEND_BURST,
-                (tuner->sat_no >> 2) & 0x01 ? SEC_MINI_B : SEC_MINI_A) < 0) {
-        fprintf(stderr, "FE_DISEQC_SEND_BURST failed: (%d) %s\n", errno, strerror(errno));
+                (tuner->config.sat_no >> 2) & 0x01 ? SEC_MINI_B : SEC_MINI_A) < 0) {
+        LOG(tuner->logger, "FE_DISEQC_SEND_BURST failed: (%d) %s\n", errno, strerror(errno));
         return -1;
     }
 
 /*    usleep(15000);*/
     nanosleep(&slp, NULL);
 
-    fprintf(stderr, "FE_SET_TONE\n");
+    LOG(tuner->logger, "FE_SET_TONE\n");
     if (ioctl(tuner->frontend_fd, FE_SET_TONE,
                 tuner->tone ? SEC_TONE_ON : SEC_TONE_OFF) < 0) {
-        fprintf(stderr, "FE_SET_TONE failed: (%d) %s\n", errno, strerror(errno));
+        LOG(tuner->logger, "FE_SET_TONE failed: (%d) %s\n", errno, strerror(errno));
         return -1;
     }
 
-    fprintf(stderr, "set_disecq successful\n");
+    LOG(tuner->logger, "set_disecq successful\n");
     return 0;
 }
 
 static int dvb_tuner_do_tune(DVBTuner *tuner)
 {
-    fprintf(stderr, "dvb_tuner_do_tune\n");
+    LOG(tuner->logger, "dvb_tuner_do_tune\n");
     struct dvb_frontend_event event;
     struct pollfd pfd[1];
     int rc;
@@ -257,21 +259,21 @@ static int dvb_tuner_do_tune(DVBTuner *tuner)
     /* discard stale events */
     while (ioctl(tuner->frontend_fd, FE_GET_EVENT, &event) != -1);
 
-/*    fprintf(stderr, "FE_SET_FRONTEND\n");
+/*    LOG(tuner->logger, "FE_SET_FRONTEND\n");
     if (ioctl(tuner->frontend_fd, FE_SET_FRONTEND, &tuner->frontend_parameters) < 0) {
-        fprintf(stderr, "FE_SET_FRONTEND failed: (%d) %s\n", errno, strerror(errno));
+        LOG(tuner->logger, "FE_SET_FRONTEND failed: (%d) %s\n", errno, strerror(errno));
         return -1;
     }
 
-    fprintf(stderr, "FE_SET_FRONTEND successful\n");*/
+    LOG(tuner->logger, "FE_SET_FRONTEND successful\n");*/
     struct dtv_property p[] = {
-        { .cmd = DTV_DELIVERY_SYSTEM, .u.data = tuner->delivery_system ? SYS_DVBS2 : SYS_DVBS },
-        { .cmd = DTV_FREQUENCY,       .u.data = tuner->frequency },
-        { .cmd = DTV_MODULATION,      .u.data = tuner->modulation },
-        { .cmd = DTV_SYMBOL_RATE,     .u.data = tuner->symbol_rate },
+        { .cmd = DTV_DELIVERY_SYSTEM, .u.data = tuner->config.delivery_system ? SYS_DVBS2 : SYS_DVBS },
+        { .cmd = DTV_FREQUENCY,       .u.data = tuner->config.frequency },
+        { .cmd = DTV_MODULATION,      .u.data = tuner->config.modulation },
+        { .cmd = DTV_SYMBOL_RATE,     .u.data = tuner->config.symbolrate },
         { .cmd = DTV_INNER_FEC,       .u.data = tuner->fec_inner },
         { .cmd = DTV_INVERSION,       .u.data = tuner->inversion },
-        { .cmd = DTV_ROLLOFF,         .u.data = tuner->roll_off },
+        { .cmd = DTV_ROLLOFF,         .u.data = tuner->config.roll_off },
         { .cmd = DTV_PILOT,           .u.data = PILOT_AUTO },
         { .cmd = DTV_TUNE },
     };
@@ -281,7 +283,7 @@ static int dvb_tuner_do_tune(DVBTuner *tuner)
     };
 
     if ((ioctl(tuner->frontend_fd, FE_SET_PROPERTY, &cmdseq)) == -1) {
-        fprintf(stderr, "FE_SET_PROPERTY failed: (%d) %s\n", errno, strerror(errno));
+        LOG(tuner->logger, "FE_SET_PROPERTY failed: (%d) %s\n", errno, strerror(errno));
         return -1;
     }
 
@@ -293,10 +295,10 @@ static int dvb_tuner_do_tune(DVBTuner *tuner)
             rc = ioctl(tuner->frontend_fd, FE_GET_EVENT, &event);
 #ifdef EOVERFLOW
             if (rc == -EOVERFLOW)
-                fprintf(stderr, "EOVERFLOW\n");
+                LOG(tuner->logger, "EOVERFLOW\n");
 #else
             if (rc == -EINVAL)
-                fprintf(stderr, "EINVAL\n");
+                LOG(tuner->logger, "EINVAL\n");
 #endif
             if (event.parameters.frequency <= 0)
                 return -1;
@@ -319,50 +321,45 @@ static int dvb_tuner_do_tune(DVBTuner *tuner)
     do {
         status = 0;
         if (ioctl(tuner->frontend_fd, FE_READ_STATUS, &status) < 0) {
-            fprintf(stderr, "FE_READ_STATUS failed: (%d) %s\n", errno, strerror(errno));
+            LOG(tuner->logger, "FE_READ_STATUS failed: (%d) %s\n", errno, strerror(errno));
             return -1;
         }
 
         if (status & FE_HAS_LOCK) {
-            fprintf(stderr, "FE_HAS_LOCK\n");
+            LOG(tuner->logger, "FE_HAS_LOCK\n");
             break;
         }
 
         /* cannot get lock if there is no signal -> warn user */
         gettimeofday(&time_now, NULL);
         if (time_now.tv_sec > time_timeout.tv_sec) {
-            fprintf(stderr, "FE_TIMEDOUT\n");
+            LOG(tuner->logger, "FE_TIMEDOUT\n");
             return -1;
         }
 
         /*usleep(10000);*/
-        fprintf(stderr, "no lock or timeout\n");
+        LOG(tuner->logger, "no lock or timeout: 0x%x\n", status);
         nanosleep(&slp, NULL);
     } while (!(status & FE_TIMEDOUT));
 
     /* xine: read tuner status (log only) */
 
     if (status & FE_HAS_LOCK && !(status & FE_TIMEDOUT)) {
-        fprintf(stderr, "do_tune successful\n");
+        LOG(tuner->logger, "do_tune successful\n");
         return 0;
     }
     else {
+        LOG(tuner->logger, "do_tune failed, status=0x%x\n", status);
         return -1;
     }
 }
 
 int dvb_tuner_tune(DVBTuner *tuner,
-                   uint32_t frequency,
-                   uint8_t polarization,
-                   uint8_t sat_no,
-                   uint32_t symbolrate,
-                   uint32_t delivery_system,
-                   uint32_t modulation,
-                   uint32_t roll_off,
+                   DVBTunerConfiguration *config,
                    uint16_t *pids,
                    size_t npids) /* + service id -> just for filter/epg/eit ? */
 {
-    if (tuner == NULL)
+    if (tuner == NULL || config == NULL)
         return -1;
 
     /* close open file descriptors */
@@ -371,47 +368,49 @@ int dvb_tuner_tune(DVBTuner *tuner,
     if (dvb_tuner_setup_frontend(tuner) < 0)
         return -1;
 
-    fprintf(stderr, "[lib] dvb_tuner_tune: frequency/symbolrate/pol: %" PRIu32 "/%" PRIu32 ", %u\n", frequency, symbolrate, polarization);
+    tuner->config = *config;
 
-    while (frequency < 1000000) {
-        frequency *= 1000;
+    LOG(tuner->logger,
+        "dvb_tuner_tune: frequency/symbolrate/pol: %" PRIu32 "/%" PRIu32 ", %u\n",
+        tuner->config.frequency, tuner->config.symbolrate, tuner->config.polarization);
+
+    while (tuner->config.frequency < 1000000) {
+        tuner->config.frequency *= 1000;
     }
-    while (symbolrate < 1000000) {
-        symbolrate *= 1000;
+    while (tuner->config.symbolrate < 1000000) {
+        tuner->config.symbolrate *= 1000;
     }
 
-    fprintf(stderr, "[lib] dvb_tuner_tune: frequency/symbolrate: %" PRIu32 "/%" PRIu32 "\n", frequency, symbolrate);
+    LOG(tuner->logger,
+        "dvb_tuner_tune: frequency/symbolrate: %" PRIu32 "/%" PRIu32 "\n",
+        tuner->config.frequency, tuner->config.symbolrate);
 
     /* lnb switch frequency (hi band/lo band)*/
-    if (frequency > 11700000) {
-        tuner->frequency = frequency - 10600000; /* lnb frequency hi */
+    if (tuner->config.frequency > 11700000) {
+        tuner->config.frequency = tuner->config.frequency - 10600000; /* lnb frequency hi */
         tuner->tone = 1;
     }
     else {
-        tuner->frequency = frequency - 9750000;  /* lnb frequency lo */
+        tuner->config.frequency = tuner->config.frequency - 9750000;  /* lnb frequency lo */
         tuner->tone = 0;
     }
 
     tuner->inversion = INVERSION_AUTO;
-    tuner->polarization = polarization;
-    tuner->sat_no = sat_no;
-    tuner->symbol_rate = symbolrate;
     tuner->fec_inner = FEC_AUTO;
-    switch (modulation) {
-        case 5: tuner->modulation = PSK_8; break;
-        case 6: tuner->modulation = APSK_16; break;
-        case 7: tuner->modulation = APSK_32; break;
+    switch (tuner->config.modulation) {
+        case 5: tuner->config.modulation = PSK_8; break;
+        case 6: tuner->config.modulation = APSK_16; break;
+        case 7: tuner->config.modulation = APSK_32; break;
         case 2:
         default:
-                tuner->modulation = QPSK; break;
+                tuner->config.modulation = QPSK; break;
     }
-    tuner->delivery_system = delivery_system;
-    switch (roll_off) {
-        case 20: tuner->roll_off = ROLLOFF_20; break;
-        case 25: tuner->roll_off = ROLLOFF_25; break;
-        case 0: tuner->roll_off = ROLLOFF_AUTO; break;
+    switch (tuner->config.roll_off) {
+        case 20: tuner->config.roll_off = ROLLOFF_20; break;
+        case 25: tuner->config.roll_off = ROLLOFF_25; break;
+        case 0: tuner->config.roll_off = ROLLOFF_AUTO; break;
         default:
-                tuner->roll_off = ROLLOFF_35;
+                tuner->config.roll_off = ROLLOFF_35;
     }
 
     /* actually tune, setup dvr_fd */
@@ -441,11 +440,11 @@ int dvb_tuner_tune(DVBTuner *tuner,
     free(dvr_device);
 
     if (tuner->dvr_fd < 0) {
-        fprintf(stderr, "failed to open dvr_device: (%d) %s\n", errno, strerror(errno));
+        LOG(tuner->logger, "failed to open dvr_device: (%d) %s\n", errno, strerror(errno));
         return -1;
     }
- 
-    fprintf(stderr, "tune successful\n");
+
+    LOG(tuner->logger, "tune successful\n");
     return 0;
 }
 
@@ -477,17 +476,17 @@ void dvb_tuner_add_pid(DVBTuner *tuner, uint16_t pid)
     params.pes_type = DMX_PES_OTHER; /* AUDIO/VIDIO/SUBTITLE/TELETEXT/PCR */
     params.flags = DMX_IMMEDIATE_START;
     if (ioctl(filter->filter.fd, DMX_SET_PES_FILTER, &params) < 0) {
-        fprintf(stderr, "[lib] Error setting up filter for pid %u.\n", pid);
+        LOG(tuner->logger, "Error setting up filter for pid %u.\n", pid);
         goto err;
     }
 
 /*    if (ioctl(filter->filter.fd, DMX_SET_BUFFER_SIZE, 8 * 4096) < 0) {
-        fprintf(stderr, "[lib] Error setting buffer size for pid %u.\n", pid);
+        LOG(tuner->logger, "Error setting buffer size for pid %u.\n", pid);
     }*/
 
     tuner->pid_filters = filter;
 
-    fprintf(stderr, "Added pid %u\n", pid);
+    LOG(tuner->logger, "Added pid %u\n", pid);
     return;
 
 err:
@@ -511,20 +510,22 @@ float dvb_tuner_get_signal_strength(DVBTuner *tuner)
     if (ioctl(tuner->frontend_fd, FE_READ_SIGNAL_STRENGTH, &strength) < 0) {
         return -1.0f;
     }
-    fprintf(stderr, "signal strength: %u\n", strength);
+    LOG(tuner->logger, "signal strength: %u\n", strength);
     return (float)(strength/65535.0f);
 }
 
 #else /* DVB_TUNER_DUMMY */
 struct _DVBTuner {
     int fd;
+
+    DVBRecorderLogger *logger;
 };
 
 DVBTuner *dvb_tuner_new(uint8_t adapter_num)
 {
     DVBTuner *tuner = malloc(sizeof(DVBTuner));
     if (unlikely(tuner == NULL)) {
-        fprintf(stderr, "Failed to allocate memory.\n");
+        LOG(tuner->logger, "Failed to allocate memory.\n");
         return NULL;
     }
     memset(tuner, 0, sizeof(DVBTuner));
@@ -536,7 +537,7 @@ DVBTuner *dvb_tuner_new(uint8_t adapter_num)
 void dvb_tuner_clean(DVBTuner *tuner)
 {
     if (tuner) {
-        fprintf(stderr, "[lib] dvb_tuner_clean tuner->fd: %d\n", tuner->fd);
+        LOG(tuner->logger, "dvb_tuner_clean tuner->fd: %d\n", tuner->fd);
         if (tuner->fd >= 0) {
             close(tuner->fd);
             tuner->fd = -1;
@@ -552,25 +553,26 @@ void dvb_tuner_free(DVBTuner *tuner)
     }
 }
 
+void dvb_tuner_set_logger(DVBTuner *tuner, DVBRecorderLogger *logger)
+{
+    if (tuner) {
+        tuner->logger = logger;
+    }
+}
+
 int dvb_tuner_tune(DVBTuner *tuner,
-                   uint32_t frequency,
-                   uint8_t polarization,
-                   uint8_t sat_no,
-                   uint32_t symbolrate,
-                   uint32_t delivery_system,
-                   uint32_t modulation,
-                   uint32_t roll_off,
+                   DVBTunerConfiguration *config,
                    uint16_t *pids,
                    size_t npids)
 {
     if (tuner == NULL)
         return -1;
-    fprintf(stderr, "[lib] dvb_tuner_tune tuner->fd: %d\n", tuner->fd);
+    LOG(tuner->logger, "dvb_tuner_tune tuner->fd: %d\n", tuner->fd);
     if (tuner->fd != -1)
         close(tuner->fd);
     tuner->fd = open("/tmp/ts-dummy.ts", O_CLOEXEC | O_RDONLY | O_NONBLOCK);
 
-    fprintf(stderr, "[tuner] tuner->fd: %d\n", tuner->fd);
+    LOG(tuner->logger, "[tuner] tuner->fd: %d\n", tuner->fd);
 
     if (tuner->fd == -1)
         return -1;
@@ -579,7 +581,7 @@ int dvb_tuner_tune(DVBTuner *tuner,
 
 void dvb_tuner_add_pid(DVBTuner *tuner, uint16_t pid)
 {
-    fprintf(stderr, "[Tuner dummy] Add pid %u\n", pid);
+    LOG(tuner->logger, "[Tuner dummy] Add pid %u\n", pid);
 }
 
 int dvb_tuner_get_fd(DVBTuner *tuner)

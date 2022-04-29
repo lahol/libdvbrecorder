@@ -178,7 +178,8 @@ void channel_db_list_foreach(CHANNEL_DB_LIST_FOREACH_CALLBACK callback, gpointer
 
     sql = "select id, title from favlists order by id asc";
 
-    rc = sqlite3_prepare_v2(dbhandler_db, sql, -1, &stmt, NULL);
+    if (sqlite3_prepare_v2(dbhandler_db, sql, -1, &stmt, NULL) != SQLITE_OK)
+        return;
 
     while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
         data.id = sqlite3_column_int(stmt, 0);
@@ -388,7 +389,7 @@ void channel_db_list_add_entry(ChannelDBList *list, ChannelData *entry, gint pos
     sqlite3_bind_int(fav_insert_entry_stmt, 2, list->id);
     sqlite3_bind_int(fav_insert_entry_stmt, 3, pos);
 
-    rc = sqlite3_step(fav_insert_entry_stmt);
+    (void)sqlite3_step(fav_insert_entry_stmt);
     sqlite3_reset(fav_insert_entry_stmt);
 }
 
@@ -410,7 +411,7 @@ void channel_db_list_update_entry(ChannelDBList *list, ChannelData *entry, gint 
     sqlite3_bind_int(fav_update_entry_stmt, 2, entry->id);
     sqlite3_bind_int(fav_update_entry_stmt, 3, list->id);
 
-    rc = sqlite3_step(fav_update_entry_stmt);
+    (void)sqlite3_step(fav_update_entry_stmt);
     sqlite3_reset(fav_update_entry_stmt);
 }
 
@@ -431,7 +432,7 @@ void channel_db_list_remove_entry(ChannelDBList *list, ChannelData *entry)
     sqlite3_bind_int(fav_delete_entry_stmt, 1, entry->id);
     sqlite3_bind_int(fav_delete_entry_stmt, 2, list->id);
 
-    rc = sqlite3_step(fav_delete_entry_stmt);
+    sqlite3_step(fav_delete_entry_stmt);
     sqlite3_reset(fav_delete_entry_stmt);
 }
 

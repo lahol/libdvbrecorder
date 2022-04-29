@@ -5,11 +5,18 @@
 #include "epg.h"
 #include "streaminfo.h"
 #include "filter.h"
+#include "logging.h"
 
 typedef struct _DVBReader DVBReader;
 
 DVBReader *dvb_reader_new(DVBRecorderEventCallback cb, gpointer userdata);
 void dvb_reader_destroy(DVBReader *reader);
+
+/** @brief Set the logger handle.
+ *  @param[in] reader The reader object to set the handle for.
+ *  @param[in] logger The new logger handle.
+ */
+void dvb_reader_set_logger(DVBReader *reader, DVBRecorderLogger *logger);
 
 /* data, size, userdata */
 typedef void (*DVBReaderListenerCallback)(const guint8 *, gsize, gpointer);

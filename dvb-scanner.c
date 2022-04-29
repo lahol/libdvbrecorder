@@ -6,7 +6,7 @@
 #include <sys/types.h>
 #include <signal.h>
 
-struct _DVBScannerPrivate {
+typedef struct _DVBScannerPrivate {
     /* private data */
     gchar *scan_command;
     gchar *satellite;
@@ -21,9 +21,9 @@ struct _DVBScannerPrivate {
     guint32 channels_found;
 
     GPid child_pid;
-};
+} DVBScannerPrivate;
 
-G_DEFINE_TYPE(DVBScanner, dvb_scanner, G_TYPE_OBJECT);
+G_DEFINE_TYPE_WITH_PRIVATE(DVBScanner, dvb_scanner, G_TYPE_OBJECT);
 
 enum {
     PROP_0,
@@ -96,7 +96,8 @@ static gboolean _dvb_scanner_is_scanned_satellite(ChannelData *data, GList *scan
 void dvb_scanner_update_channels_db(DVBScanner *scanner)
 {
     GList *old_channels = NULL;
-    if (scanner->priv->scanned_satellites == NULL)
+    DVBScannerPrivate *priv = dvb_scanner_get_instance_private(scanner);
+    if (priv->scanned_satellites == NULL)
         return;
 
     GList *tmp, *match;
@@ -108,7 +109,7 @@ void dvb_scanner_update_channels_db(DVBScanner *scanner)
     /* if old channel comes from one of the scanned channels, mark as dirty */
     for (tmp = old_channels; tmp != NULL; tmp = g_list_next(tmp)) {
         if (_dvb_scanner_is_scanned_satellite((ChannelData *)tmp->data,
-                    scanner->priv->scanned_satellites)) {
+                    priv->scanned_satellites)) {
             ((ChannelData *)tmp->data)->flags |= CHNL_FLAG_DIRTY;
         }
     }
@@ -117,7 +118,7 @@ void dvb_scanner_update_channels_db(DVBScanner *scanner)
      *  if found: update data, mark clean
      *  else: append to new_channels
      */
-    for (tmp = scanner->priv->scanned_channels; tmp != NULL; tmp = g_list_next(tmp)) {
+    for (tmp = priv->scanned_channels; tmp != NULL; tmp = g_list_next(tmp)) {
         match = g_list_find_custom(old_channels, tmp->data, (GCompareFunc)_dvb_scanner_compare_channel_nid_sid);
         if (match != NULL) {
             channel_data_update_payload((ChannelData *)match->data, (ChannelData *)tmp->data);
@@ -146,7 +147,8 @@ static void dvb_scanner_child_watch_cb(GPid pid, gint status, DVBScanner *self)
 {
     fprintf(stderr, "dvb_scanner_child_watch_cb: %u (%d)\n", pid, status);
     g_spawn_close_pid(pid);
-    self->priv->child_pid = 0;
+    DVBScannerPrivate *priv = dvb_scanner_get_instance_private(self);
+    priv->child_pid = 0;
 
     /* do net emit signal if object is being destructed */
     if (IS_DVB_SCANNER(self))
@@ -165,14 +167,15 @@ static gboolean dvb_scanner_watch_out_cb(GIOChannel *channel, GIOCondition cond,
 
     g_io_channel_read_line(channel, &string, &size, NULL, NULL);
 
-    g_mutex_lock(&self->priv->scan_mutex);
-    ChannelData *data = channel_data_parse(string, self->priv->satellite);
+    DVBScannerPrivate *priv = dvb_scanner_get_instance_private(self);
+    g_mutex_lock(&priv->scan_mutex);
+    ChannelData *data = channel_data_parse(string, priv->satellite);
     if (data != NULL) {
-        self->priv->scanned_channels = g_list_prepend(self->priv->scanned_channels, data);
+        priv->scanned_channels = g_list_prepend(priv->scanned_channels, data);
 
         g_signal_emit(self, dvb_scanner_signals[SIGNAL_CHANNEL_FOUND], 0, data);
     }
-    g_mutex_unlock(&self->priv->scan_mutex);
+    g_mutex_unlock(&priv->scan_mutex);
 
     g_free(string);
 
@@ -182,12 +185,13 @@ static gboolean dvb_scanner_watch_out_cb(GIOChannel *channel, GIOCondition cond,
 void dvb_scanner_start(DVBScanner *scanner)
 {
     g_return_if_fail(IS_DVB_SCANNER(scanner));
-    g_return_if_fail(scanner->priv->scan_command != NULL && *(scanner->priv->scan_command));
-    g_return_if_fail(scanner->priv->satellite != NULL && *(scanner->priv->satellite));
+    DVBScannerPrivate *priv = dvb_scanner_get_instance_private(scanner);
+    g_return_if_fail(priv->scan_command != NULL && *(priv->scan_command));
+    g_return_if_fail(priv->satellite != NULL && *(priv->satellite));
 
     GRegex *cmd_regex = g_regex_new("\\${satellite}", G_REGEX_RAW, 0, NULL);
-    gchar *cmd = g_regex_replace_literal(cmd_regex, scanner->priv->scan_command,
-            -1, 0, scanner->priv->satellite, 0, NULL);
+    gchar *cmd = g_regex_replace_literal(cmd_regex, priv->scan_command,
+            -1, 0, priv->satellite, 0, NULL);
 
     fprintf(stderr, "Command: %s\n", cmd);
 
@@ -197,8 +201,8 @@ void dvb_scanner_start(DVBScanner *scanner)
     if (!g_shell_parse_argv(cmd, &argc, &argv, NULL))
         goto done;
 
-    scanner->priv->scanned_satellites = g_list_prepend(scanner->priv->scanned_satellites,
-                                                       g_strdup(scanner->priv->satellite));
+    priv->scanned_satellites = g_list_prepend(priv->scanned_satellites,
+                                                       g_strdup(priv->satellite));
 
     GIOChannel *out_ch;
     gint out;
@@ -206,7 +210,7 @@ void dvb_scanner_start(DVBScanner *scanner)
 
     ret = g_spawn_async_with_pipes(NULL, argv, NULL,
             G_SPAWN_DO_NOT_REAP_CHILD | G_SPAWN_SEARCH_PATH, NULL,
-            NULL, &scanner->priv->child_pid, NULL, &out, NULL, NULL);
+            NULL, &priv->child_pid, NULL, &out, NULL, NULL);
 
     fprintf(stderr, "spawn ret: %d\n", ret);
 
@@ -215,7 +219,7 @@ void dvb_scanner_start(DVBScanner *scanner)
 
     g_signal_emit(scanner, dvb_scanner_signals[SIGNAL_SCAN_STARTED], 0, G_TYPE_NONE);
 
-    g_child_watch_add(scanner->priv->child_pid, (GChildWatchFunc)dvb_scanner_child_watch_cb, scanner);
+    g_child_watch_add(priv->child_pid, (GChildWatchFunc)dvb_scanner_child_watch_cb, scanner);
 
     out_ch = g_io_channel_unix_new(out);
     g_io_add_watch(out_ch, G_IO_IN | G_IO_HUP, (GIOFunc)dvb_scanner_watch_out_cb, scanner);
@@ -231,11 +235,12 @@ void dvb_scanner_stop(DVBScanner *scanner)
     fprintf(stderr, "dvb_scanner_stop (%p)\n", scanner);
     g_return_if_fail(IS_DVB_SCANNER(scanner));
 
-    fprintf(stderr, "child pid: %u\n", scanner->priv->child_pid);
-    
-    if (scanner->priv->child_pid > 0) {
-        kill(scanner->priv->child_pid, SIGKILL);
-        scanner->priv->child_pid = 0;
+    DVBScannerPrivate *priv = dvb_scanner_get_instance_private(scanner);
+    fprintf(stderr, "child pid: %u\n", priv->child_pid);
+
+    if (priv->child_pid > 0) {
+        kill(priv->child_pid, SIGKILL);
+        priv->child_pid = 0;
     }
 }
 
@@ -244,37 +249,38 @@ static void dvb_scanner_dispose(GObject *gobject)
     DVBScanner *self = DVB_SCANNER(gobject);
     dvb_scanner_stop(self);
 
-    g_list_free_full(self->priv->scanned_channels,
+    DVBScannerPrivate *priv = dvb_scanner_get_instance_private(self);
+    g_list_free_full(priv->scanned_channels,
             (GDestroyNotify)channel_data_free);
-    self->priv->scanned_channels = NULL;
+    priv->scanned_channels = NULL;
 
-    g_list_free_full(self->priv->scanned_satellites,
+    g_list_free_full(priv->scanned_satellites,
             (GDestroyNotify)g_free);
-    self->priv->scanned_satellites = NULL;
+    priv->scanned_satellites = NULL;
 
     G_OBJECT_CLASS(dvb_scanner_parent_class)->dispose(gobject);
 }
 
 static void dvb_scanner_finalize(GObject *gobject)
 {
-    DVBScanner *self = DVB_SCANNER(gobject);
-    g_free(self->priv->scan_command);
-    g_free(self->priv->satellite);
+    DVBScannerPrivate *priv = dvb_scanner_get_instance_private(DVB_SCANNER(gobject));
+    g_free(priv->scan_command);
+    g_free(priv->satellite);
 
-    self->priv->satellite = NULL;
-    self->priv->scan_command = NULL;
+    priv->satellite = NULL;
+    priv->scan_command = NULL;
 
     G_OBJECT_CLASS(dvb_scanner_parent_class)->finalize(gobject);
 }
 
-static void dvb_scanner_set_property(GObject *object, guint prop_id, 
+static void dvb_scanner_set_property(GObject *object, guint prop_id,
         const GValue *value, GParamSpec *spec)
 {
     DVBScanner *self = DVB_SCANNER(object);
 
     switch (prop_id) {
         case PROP_SCAN_COMMAND:
-            dvb_scanner_set_scan_command(self, g_value_get_string(value)); 
+            dvb_scanner_set_scan_command(self, g_value_get_string(value));
             break;
         case PROP_SATELLITE:
             dvb_scanner_set_satellite(self, g_value_get_string(value));
@@ -289,13 +295,14 @@ static void dvb_scanner_get_property(GObject *object, guint prop_id,
         GValue *value, GParamSpec *spec)
 {
     DVBScanner *self = DVB_SCANNER(object);
+    DVBScannerPrivate *priv = dvb_scanner_get_instance_private(self);
 
     switch (prop_id) {
     	case PROP_SCAN_COMMAND:
-            g_value_set_string(value, self->priv->scan_command);
+            g_value_set_string(value, priv->scan_command);
             break;
         case PROP_SATELLITE:
-            g_value_set_string(value, self->priv->satellite);
+            g_value_set_string(value, priv->satellite);
             break;
         default:
             G_OBJECT_WARN_INVALID_PROPERTY_ID(object, prop_id, spec);
@@ -362,16 +369,13 @@ static void dvb_scanner_class_init(DVBScannerClass *klass)
                 1,
                 G_TYPE_POINTER,
                 NULL);
-
-    g_type_class_add_private(G_OBJECT_CLASS(klass), sizeof(DVBScannerPrivate));
 }
 
 static void dvb_scanner_init(DVBScanner *self)
 {
-    self->priv = G_TYPE_INSTANCE_GET_PRIVATE(self,
-            DVB_SCANNER_TYPE, DVBScannerPrivate);
+    DVBScannerPrivate *priv = dvb_scanner_get_instance_private(self);
 
-    g_mutex_init(&self->priv->scan_mutex);
+    g_mutex_init(&priv->scan_mutex);
 }
 
 DVBScanner *dvb_scanner_new(void)
@@ -382,8 +386,9 @@ DVBScanner *dvb_scanner_new(void)
 void dvb_scanner_set_scan_command(DVBScanner *scanner, const gchar *scan_command)
 {
     g_return_if_fail(IS_DVB_SCANNER(scanner));
-    g_free(scanner->priv->scan_command);
-    scanner->priv->scan_command = g_strdup(scan_command);
+    DVBScannerPrivate *priv = dvb_scanner_get_instance_private(scanner);
+    g_free(priv->scan_command);
+    priv->scan_command = g_strdup(scan_command);
 }
 
 const gchar *dvb_scanner_get_scan_command(DVBScanner *scanner)
@@ -395,8 +400,9 @@ const gchar *dvb_scanner_get_scan_command(DVBScanner *scanner)
 void dvb_scanner_set_satellite(DVBScanner *scanner, const gchar *satellite)
 {
     g_return_if_fail(IS_DVB_SCANNER(scanner));
-    g_free(scanner->priv->satellite);
-    scanner->priv->satellite = g_strdup(satellite);
+    DVBScannerPrivate *priv = dvb_scanner_get_instance_private(scanner);
+    g_free(priv->satellite);
+    priv->satellite = g_strdup(satellite);
 }
 
 const gchar *dvb_scanner_get_satellite(DVBScanner *scanner)
