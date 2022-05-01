@@ -85,6 +85,11 @@ struct _DVBTuner {
 
 int dvb_tuner_setup_frontend(DVBTuner *tuner)
 {
+    if (tuner->frontend_fd >= 0) {
+        LOG(tuner->logger, "Frontend already initialized, nothing to do.\n");
+        return 0;
+    }
+
     char *frontend_dev = NULL;
     if (_asprintf(&frontend_dev, "/dev/dvb/adapter%u/frontend0", tuner->adapter_num) < 0) {
         LOG(tuner->logger, "Failed to get frontend dev string.\n");
@@ -134,13 +139,6 @@ void dvb_tuner_clean(DVBTuner *tuner)
 {
     if (!tuner)
         return;
-#define CLOSE_FD(fd) do {\
-    if (tuner->fd >= 0) {\
-        close(tuner->fd);\
-        tuner->fd = -1;\
-    }\
-} while (0)
-
     LOG(tuner->logger, "dvb_tuner_clean\n");
 
     struct PIDFilterList *tmp;
@@ -155,16 +153,19 @@ void dvb_tuner_clean(DVBTuner *tuner)
         tuner->pid_filters = tmp;
     }
 
-    CLOSE_FD(dvr_fd);
-    CLOSE_FD(frontend_fd);
-
-#undef CLOSE_FD
+    if (tuner->dvr_fd >= 0) {
+        close(tuner->dvr_fd);
+        tuner->dvr_fd = -1;
+    }
 }
 
 void dvb_tuner_free(DVBTuner *tuner)
 {
     if (tuner) {
         dvb_tuner_clean(tuner);
+        if (tuner->frontend_fd >= 0) {
+            close(tuner->frontend_fd);
+        }
         free(tuner);
     }
 }
@@ -521,6 +522,7 @@ struct _DVBTuner {
     DVBRecorderLogger *logger;
 };
 
+/* Dummy */
 DVBTuner *dvb_tuner_new(uint8_t adapter_num)
 {
     DVBTuner *tuner = malloc(sizeof(DVBTuner));
@@ -534,6 +536,7 @@ DVBTuner *dvb_tuner_new(uint8_t adapter_num)
     return tuner;
 }
 
+/* Dummy */
 void dvb_tuner_clean(DVBTuner *tuner)
 {
     if (tuner) {
@@ -545,6 +548,7 @@ void dvb_tuner_clean(DVBTuner *tuner)
     }
 }
 
+/* Dummy */
 void dvb_tuner_free(DVBTuner *tuner)
 {
     if (tuner) {
@@ -553,6 +557,7 @@ void dvb_tuner_free(DVBTuner *tuner)
     }
 }
 
+/* Dummy */
 void dvb_tuner_set_logger(DVBTuner *tuner, DVBRecorderLogger *logger)
 {
     if (tuner) {
@@ -560,6 +565,7 @@ void dvb_tuner_set_logger(DVBTuner *tuner, DVBRecorderLogger *logger)
     }
 }
 
+/* Dummy */
 int dvb_tuner_tune(DVBTuner *tuner,
                    DVBTunerConfiguration *config,
                    uint16_t *pids,
@@ -579,11 +585,13 @@ int dvb_tuner_tune(DVBTuner *tuner,
     return 0;
 }
 
+/* Dummy */
 void dvb_tuner_add_pid(DVBTuner *tuner, uint16_t pid)
 {
     LOG(tuner->logger, "[Tuner dummy] Add pid %u\n", pid);
 }
 
+/* Dummy */
 int dvb_tuner_get_fd(DVBTuner *tuner)
 {
     if (tuner == NULL)
@@ -591,6 +599,7 @@ int dvb_tuner_get_fd(DVBTuner *tuner)
     return tuner->fd;
 }
 
+/* Dummy */
 float dvb_tuner_get_signal_strength(DVBTuner *tuner)
 {
     return -1.0f;
