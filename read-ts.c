@@ -44,7 +44,6 @@ void ts_reader_sync_stream(TsReader *reader)
                 if (offset + i * TS_SIZE < reader->remaining) {
                     if (!ts_validate(&reader->buffer[offset + i * TS_SIZE]))
                         no_match = 1;
-                    break;
                 }
                 else {
                     goto err;

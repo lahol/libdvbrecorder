@@ -11,10 +11,10 @@ ifdef DVBDUMMY
 	CFLAGS += -DDVB_TUNER_DUMMY
 endif
 
-ifdef RELEASE
-	CFLAGS += -O2
-else
+ifdef DEBUG
 	CFLAGS += -g
+else
+	CFLAGS += -O2
 endif
 
 all: libdvbrecorder.so.1.0
