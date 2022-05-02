@@ -26,6 +26,8 @@ int dvb_tuner_tune(DVBTuner *tuner,
                    DVBTunerConfiguration *config,
                    uint16_t *pids,
                    size_t npids);
+/* Stop the tuner and close all file descriptors, including frontend. */
+void dvb_tuner_stop(DVBTuner *tuner);
 void dvb_tuner_add_pid(DVBTuner *tuner, uint16_t pid);
 
 int dvb_tuner_get_fd(DVBTuner *tuner);

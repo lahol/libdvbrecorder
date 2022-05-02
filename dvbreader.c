@@ -305,7 +305,7 @@ void dvb_reader_reset(DVBReader *reader)
     g_list_free_full(reader->active_pids, g_free);
     reader->active_pids = NULL;
 
-    dvb_tuner_clean(reader->tuner);
+    dvb_tuner_stop(reader->tuner);
 }
 
 void dvb_reader_destroy(DVBReader *reader)

@@ -159,13 +159,26 @@ void dvb_tuner_clean(DVBTuner *tuner)
     }
 }
 
+void dvb_tuner_close_frontend(DVBTuner *tuner)
+{
+    if (tuner) {
+        if (tuner->frontend_fd >= 0) {
+            close(tuner->frontend_fd);
+            tuner->frontend_fd = -1;
+        }
+    }
+}
+
+void dvb_tuner_stop(DVBTuner *tuner)
+{
+    dvb_tuner_clean(tuner);
+    dvb_tuner_close_frontend(tuner);
+}
+
 void dvb_tuner_free(DVBTuner *tuner)
 {
     if (tuner) {
-        dvb_tuner_clean(tuner);
-        if (tuner->frontend_fd >= 0) {
-            close(tuner->frontend_fd);
-        }
+        dvb_tuner_stop(tuner);
         free(tuner);
     }
 }
@@ -546,6 +559,12 @@ void dvb_tuner_clean(DVBTuner *tuner)
             tuner->fd = -1;
         }
     }
+}
+
+/* Dummy */
+void dvb_tuner_stop(DVBTuner *tuner)
+{
+    dvb_tuner_clean(tuner);
 }
 
 /* Dummy */
