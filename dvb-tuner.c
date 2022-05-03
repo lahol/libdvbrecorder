@@ -34,6 +34,9 @@ int _asprintf(char **strp, const char *fmt, ...)
     bytes_needed = vsnprintf(buffer, 64, fmt, args);
     va_end(args);
 
+    if (bytes_needed < 0)
+        return -1;
+
     *strp = malloc(bytes_needed + 1);
     if (*strp == NULL)
         return -1;
