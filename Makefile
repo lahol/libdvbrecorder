@@ -17,6 +17,8 @@ else
 	CFLAGS += -O2
 endif
 
+check: CFLAGS += -fanalyzer
+
 all: libdvbrecorder.so.1.0
 
 dr_SRC := $(wildcard *.c)
@@ -38,5 +40,7 @@ install: libdvbrecorder.so.1.0
 
 clean:
 	$(RM) -f libdvbrecorder.so.1.0 $(dr_OBJ)
+
+check: clean $(dr_OBJ)
 
 .PHONY: all clean install
