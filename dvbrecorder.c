@@ -95,9 +95,9 @@ err:
 void dvb_recorder_destroy(DVBRecorder *recorder)
 {
     FLOG("\n");
-    LOG(&recorder->logger, "dvb_recorder_destroy\n");
     if (!recorder)
         return;
+    LOG(&recorder->logger, "dvb_recorder_destroy\n");
 
     dvb_recorder_enable_video_source(recorder, FALSE);
     if (recorder->video_pipe[1] >= 0) {
@@ -107,6 +107,8 @@ void dvb_recorder_destroy(DVBRecorder *recorder)
     if (recorder->video_pipe[0] >= 0)
         close(recorder->video_pipe[0]);
     g_free(recorder->record_filename);
+    g_free(recorder->capture_dir);
+    g_free(recorder->record_filename_pattern);
 
     dvb_reader_destroy(recorder->reader);
 
@@ -148,9 +150,13 @@ int dvb_recorder_enable_video_source(DVBRecorder *recorder, gboolean enable)
     }
     else {
         LOG(&recorder->logger, "enable_video_source: FALSE\n");
-        dvb_reader_remove_listener(recorder->reader, recorder->video_pipe[1], NULL);
-        close(recorder->video_pipe[0]);
-        close(recorder->video_pipe[1]);
+        if (recorder->video_pipe[1] >= 0) {
+            dvb_reader_remove_listener(recorder->reader, recorder->video_pipe[1], NULL);
+            close(recorder->video_pipe[1]);
+        }
+        if (recorder->video_pipe[0] >= 0) {
+            close(recorder->video_pipe[0]);
+        }
         recorder->video_pipe[0] = -1;
         recorder->video_pipe[1] = -1;
 
@@ -209,6 +215,7 @@ gboolean dvb_recorder_set_channel(DVBRecorder *recorder, guint64 channel_id)
                 "channel-id", channel_id,
                 NULL, NULL);
 
+        channel_data_free(chdata);
         return TRUE;
     }
     else {

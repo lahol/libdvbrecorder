@@ -330,6 +330,10 @@ void dvb_reader_destroy(DVBReader *reader)
 
     g_list_free_full(reader->listeners, (GDestroyNotify)dvb_reader_listener_free);
     g_list_free_full(reader->active_pids, g_free);
+
+    dvb_tuner_free(reader->tuner);
+
+    g_free(reader);
 }
 
 DVBStreamStatus dvb_reader_get_stream_status(DVBReader *reader)
@@ -613,12 +617,12 @@ void dvb_reader_stop(DVBReader *reader)
         reader->data_thread = NULL;
     }
 
-    if (reader->control_pipe_stream[1] >= 0) {
-        close(reader->control_pipe_stream[1]);
-        reader->control_pipe_stream[0] = -1;
-    }
     if (reader->control_pipe_stream[0] >= 0) {
         close(reader->control_pipe_stream[0]);
+        reader->control_pipe_stream[0] = -1;
+    }
+    if (reader->control_pipe_stream[1] >= 0) {
+        close(reader->control_pipe_stream[1]);
         reader->control_pipe_stream[1] = -1;
     }
 
